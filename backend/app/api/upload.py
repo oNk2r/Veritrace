@@ -3,8 +3,10 @@ from pathlib import Path
 from fastapi import APIRouter, File, UploadFile, status
 from fastapi.responses import JSONResponse
 from app.services.pdf_service import extract_pdf_data
+from app.services.llm_service import LLMService
 
 router = APIRouter()
+llm_service = LLMService()
 
 # Resolve paths
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -47,12 +49,25 @@ async def upload_pdf(file: UploadFile = File(...)):
             content={"error": result["error"]}
         )
 
+    # Perform Gemini structured extraction
+    analysis = llm_service.extract_esg_data(result["text"])
+    if isinstance(analysis, dict) and "error" in analysis:
+        # Delete invalid file to clean up uploads/
+        if file_path.exists():
+            file_path.unlink()
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"error": analysis["error"]}
+        )
+
+    analysis_data = analysis.model_dump() if hasattr(analysis, "model_dump") else analysis
+
     return {
         "success": True,
         "filename": file.filename,
         "pages": result["pages"],
         "characters": result["characters"],
-        "text": result["text"][:1000]  # Return only the first 1000 characters
+        "data": analysis_data
     }
 
 @router.post("/extract")
@@ -92,9 +107,19 @@ async def extract_pdf(file: UploadFile = File(...)):
             content={"error": result["error"]}
         )
 
+    # Perform Gemini structured extraction
+    analysis = llm_service.extract_esg_data(result["text"])
+    if isinstance(analysis, dict) and "error" in analysis:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"error": analysis["error"]}
+        )
+
+    analysis_data = analysis.model_dump() if hasattr(analysis, "model_dump") else analysis
+
     return {
         "success": True,
         "pages": result["pages"],
         "characters": result["characters"],
-        "text": result["text"][:1000]  # Return only the first 1000 characters
+        "data": analysis_data
     }
