@@ -4,9 +4,13 @@ from fastapi import APIRouter, File, UploadFile, status
 from fastapi.responses import JSONResponse
 from app.services.pdf_service import extract_pdf_data
 from app.services.llm_service import LLMService
+from app.services.climatetrace_service import ClimateTraceService
+from app.services.comparison_service import ComparisonEngine
+from app.schemas.climatetrace import ClimateTraceCompanyEmissions
 
 router = APIRouter()
 llm_service = LLMService()
+climatetrace_service = ClimateTraceService()
 
 # Resolve paths
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -49,25 +53,60 @@ async def upload_pdf(file: UploadFile = File(...)):
             content={"error": result["error"]}
         )
 
-    # Perform Gemini structured extraction
-    analysis = llm_service.extract_esg_data(result["text"])
-    if isinstance(analysis, dict) and "error" in analysis:
+    # Perform Gemini structured extraction (Phase 1)
+    esg_analysis = llm_service.extract_esg_data(result["text"])
+    if isinstance(esg_analysis, dict) and "error" in esg_analysis:
         # Delete invalid file to clean up uploads/
         if file_path.exists():
             file_path.unlink()
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"error": analysis["error"]}
+            content={"error": esg_analysis["error"]}
         )
 
-    analysis_data = analysis.model_dump() if hasattr(analysis, "model_dump") else analysis
+    # Retrieve Climate TRACE data (Phase 2)
+    company_name = esg_analysis.company_name
+    reporting_year = esg_analysis.reporting_year
+    
+    ct_analysis = await climatetrace_service.get_company_data(company_name, reporting_year)
+    if ct_analysis is None:
+        # Graceful fallback: comparison engine handles empty CT data
+        ct_analysis = ClimateTraceCompanyEmissions(
+            company_id="UNKNOWN",
+            company_name=company_name,
+            year=reporting_year,
+            total_emissions=0.0
+        )
+
+    # Run Comparison calculations (Phase 3)
+    comparison = ComparisonEngine.compare_data(esg_analysis, ct_analysis)
+
+    # Generate AI Report (Phase 4)
+    ai_report = llm_service.generate_verification_report(esg_analysis, ct_analysis, comparison)
+    if isinstance(ai_report, dict) and "error" in ai_report:
+        # Delete invalid file to clean up uploads/
+        if file_path.exists():
+            file_path.unlink()
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"error": ai_report["error"]}
+        )
+
+    # Serialize Pydantic schemas to JSON
+    esg_data = esg_analysis.model_dump()
+    ct_data = ct_analysis.model_dump()
+    comp_data = comparison.model_dump()
+    report_data = ai_report.model_dump() if hasattr(ai_report, "model_dump") else ai_report
 
     return {
         "success": True,
         "filename": file.filename,
         "pages": result["pages"],
         "characters": result["characters"],
-        "data": analysis_data
+        "esg_data": esg_data,
+        "climatetrace_data": ct_data,
+        "comparison": comp_data,
+        "report": report_data
     }
 
 @router.post("/extract")
@@ -107,19 +146,50 @@ async def extract_pdf(file: UploadFile = File(...)):
             content={"error": result["error"]}
         )
 
-    # Perform Gemini structured extraction
-    analysis = llm_service.extract_esg_data(result["text"])
-    if isinstance(analysis, dict) and "error" in analysis:
+    # Perform Gemini structured extraction (Phase 1)
+    esg_analysis = llm_service.extract_esg_data(result["text"])
+    if isinstance(esg_analysis, dict) and "error" in esg_analysis:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"error": analysis["error"]}
+            content={"error": esg_analysis["error"]}
         )
 
-    analysis_data = analysis.model_dump() if hasattr(analysis, "model_dump") else analysis
+    # Retrieve Climate TRACE data (Phase 2)
+    company_name = esg_analysis.company_name
+    reporting_year = esg_analysis.reporting_year
+
+    ct_analysis = await climatetrace_service.get_company_data(company_name, reporting_year)
+    if ct_analysis is None:
+        ct_analysis = ClimateTraceCompanyEmissions(
+            company_id="UNKNOWN",
+            company_name=company_name,
+            year=reporting_year,
+            total_emissions=0.0
+        )
+
+    # Run Comparison calculations (Phase 3)
+    comparison = ComparisonEngine.compare_data(esg_analysis, ct_analysis)
+
+    # Generate AI Report (Phase 4)
+    ai_report = llm_service.generate_verification_report(esg_analysis, ct_analysis, comparison)
+    if isinstance(ai_report, dict) and "error" in ai_report:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"error": ai_report["error"]}
+        )
+
+    # Serialize Pydantic schemas to JSON
+    esg_data = esg_analysis.model_dump()
+    ct_data = ct_analysis.model_dump()
+    comp_data = comparison.model_dump()
+    report_data = ai_report.model_dump() if hasattr(ai_report, "model_dump") else ai_report
 
     return {
         "success": True,
         "pages": result["pages"],
         "characters": result["characters"],
-        "data": analysis_data
+        "esg_data": esg_data,
+        "climatetrace_data": ct_data,
+        "comparison": comp_data,
+        "report": report_data
     }

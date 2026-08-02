@@ -2,7 +2,7 @@ import httpx
 import asyncio
 import logging
 from typing import List, Optional, Dict, Tuple
-from app.schemas.climatetrace import ClimateTraceFacility, ClimateTraceCompanyEmissions
+from app.schemas.climatetrace import ClimateTraceCompanyEmissions
 
 logger = logging.getLogger(__name__)
 
@@ -89,23 +89,14 @@ class ClimateTraceService:
             owner_name = owner_info["name"]
             logger.info(f"Resolved '{company_name}' to ID: {owner_id} ({owner_name})")
 
-            # Step 2: Fetch aggregate emissions and facility list concurrently
+            # Step 2: Fetch aggregate emissions
             emissions_url = f"{self.base_url}/v7/sources/emissions"
-            sources_url = f"{self.base_url}/v7/sources"
             params = {"ownerIds": owner_id, "year": year}
 
             try:
-                emissions_task = client.get(emissions_url, params=params, timeout=self.timeout)
-                sources_task = client.get(sources_url, params=params, timeout=self.timeout)
-
-                emissions_res, sources_res = await asyncio.gather(emissions_task, sources_task)
-                
-                emissions_res.raise_for_status()
-                sources_res.raise_for_status()
-
-                emissions_data = emissions_res.json()
-                sources_data = sources_res.json()
-
+                response = await client.get(emissions_url, params=params, timeout=self.timeout)
+                response.raise_for_status()
+                emissions_data = response.json()
             except Exception as e:
                 logger.error(f"Failed to fetch data for owner {owner_id} from Climate TRACE: {str(e)}")
                 return None
@@ -119,39 +110,11 @@ class ClimateTraceService:
                         total_emissions = float(summary.get("emissionsQuantity", 0.0))
                         break
 
-            # Step 4: Parse granular facility list
-            facilities: List[ClimateTraceFacility] = []
-            if sources_data and isinstance(sources_data, list):
-                for source in sources_data:
-                    # Extract coordinates if centroid exists
-                    centroid = source.get("centroid", {})
-                    lat = float(centroid["latitude"]) if centroid and "latitude" in centroid else None
-                    lon = float(centroid["longitude"]) if centroid and "longitude" in centroid else None
-                    
-                    facility = ClimateTraceFacility(
-                        id=int(source["id"]),
-                        name=str(source["name"]),
-                        sector=str(source["sector"]),
-                        subsector=str(source["subsector"]),
-                        country=str(source["country"]),
-                        emissions=float(source.get("emissionsQuantity", 0.0)),
-                        year=int(source["year"]),
-                        latitude=lat,
-                        longitude=lon
-                    )
-                    facilities.append(facility)
-
-            # Fallback: if aggregate emissions came back as 0.0 but we have facility-level emissions, sum them up
-            if total_emissions == 0.0 and facilities:
-                total_emissions = sum(f.emissions for f in facilities)
-                logger.info(f"Aggregated total emissions from facilities: {total_emissions} tons")
-
             result = ClimateTraceCompanyEmissions(
                 company_id=owner_id,
                 company_name=owner_name,
                 year=year,
-                total_emissions=total_emissions,
-                facilities=facilities
+                total_emissions=total_emissions
             )
 
             # Store in cache
