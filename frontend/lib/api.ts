@@ -4,8 +4,11 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export interface UploadResponse {
   success: boolean;
-  filename: string;
-  message: string;
+  filename?: string;
+  pages?: number;
+  characters?: number;
+  text?: string;
+  message?: string;
 }
 
 export async function uploadPDF(file: File): Promise<UploadResponse> {

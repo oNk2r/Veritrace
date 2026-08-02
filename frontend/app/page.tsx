@@ -4,12 +4,11 @@ import { useState, useRef, ChangeEvent, DragEvent } from "react";
 import { 
   Upload, 
   FileText, 
-  CheckCircle2, 
   AlertCircle, 
   Loader2, 
   X
 } from "lucide-react";
-import { uploadPDF } from "@/lib/api";
+import { uploadPDF, UploadResponse } from "@/lib/api";
 
 const ANALYSIS_STEPS = [
   "Uploading PDF",
@@ -25,19 +24,30 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [analysisStep, setAnalysisStep] = useState<number>(0);
   const [progressPercent, setProgressPercent] = useState<number>(0);
+  const [resultData, setResultData] = useState<UploadResponse | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragActive, setIsDragActive] = useState<boolean>(false);
+
+  // Format file size helper
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
 
   // Handle file selection and validation
   const handleFileChange = (selectedFile: File | null) => {
     if (!selectedFile) return;
 
-    // Validate wrong file type
+    // Validate extension
     if (!selectedFile.name.toLowerCase().endsWith(".pdf")) {
       setErrorMessage("Only PDF files are allowed.");
       setFile(null);
       setUploadStatus("error");
+      setResultData(null);
       return;
     }
 
@@ -46,6 +56,7 @@ export default function Home() {
     setUploadStatus("idle");
     setAnalysisStep(0);
     setProgressPercent(0);
+    setResultData(null);
   };
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -85,18 +96,19 @@ export default function Home() {
     setErrorMessage(null);
     setAnalysisStep(0);
     setProgressPercent(0);
+    setResultData(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  // Run simulated analysis sequence
-  const startAnalysisSimulation = () => {
+  // Run simulated analysis sequence and resolve with backend response data
+  const startAnalysisSimulation = (response: UploadResponse) => {
     const steps = [
-      { step: 1, percent: 40, delay: 1200 }, // Extracting ESG Data
-      { step: 2, percent: 60, delay: 1200 }, // Running AI Verification
-      { step: 3, percent: 80, delay: 1200 }, // Comparing Against Benchmarks
-      { step: 4, percent: 100, delay: 1000 } // Generating Report
+      { step: 1, percent: 40, delay: 1000 }, // Extracting ESG Data
+      { step: 2, percent: 60, delay: 1000 }, // Running AI Verification
+      { step: 3, percent: 80, delay: 1000 }, // Comparing Against Benchmarks
+      { step: 4, percent: 100, delay: 800 }  // Generating Report
     ];
 
     let currentPromise = Promise.resolve();
@@ -115,8 +127,9 @@ export default function Home() {
 
     currentPromise.then(() => {
       setTimeout(() => {
+        setResultData(response);
         setUploadStatus("success");
-      }, 800);
+      }, 600);
     });
   };
 
@@ -132,14 +145,15 @@ export default function Home() {
     setErrorMessage(null);
     setAnalysisStep(0);
     setProgressPercent(15);
+    setResultData(null);
 
     try {
       // 1. Perform actual upload to backend
       const response = await uploadPDF(file);
       
       if (response.success) {
-        // 2. Start mock analysis simulation
-        startAnalysisSimulation();
+        // 2. Start mock analysis simulation and pass backend result
+        startAnalysisSimulation(response);
       } else {
         setUploadStatus("error");
         setErrorMessage(response.message || "Upload failed.");
@@ -148,21 +162,10 @@ export default function Home() {
       setUploadStatus("error");
       if (!error.response) {
         setErrorMessage("Unable to connect to server.");
-      } else if (error.response.status === 400) {
-        setErrorMessage(error.response.data?.detail || "Only PDF files are allowed.");
       } else {
-        setErrorMessage("An unexpected error occurred during upload.");
+        setErrorMessage(error.response.data?.error || "Only PDF files are allowed.");
       }
     }
-  };
-
-  // Helper to format file size
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
   return (
@@ -191,7 +194,7 @@ export default function Home() {
         </div>
 
         {/* 3. Upload Card */}
-        <div className="w-full bg-[#0F172A] border border-[rgba(255,255,255,0.06)] rounded-[20px] p-8 shadow-sm flex flex-col gap-6 transition-all duration-200 hover:border-[rgba(255,255,255,0.1)]">
+        <div className="w-full bg-[#0F172A] border border-[rgba(255,255,255,0.06)] rounded-[20px] p-8 shadow-sm flex flex-col gap-6 transition-all duration-200 hover:border-[rgba(255,255,255,0.1)] animate-in fade-in slide-in-from-bottom-2 duration-300">
           
           <input 
             type="file" 
@@ -202,81 +205,143 @@ export default function Home() {
           />
 
           {/* Conditional upload area / uploaded file representation */}
-          {!file ? (
-            <div 
-              onDragEnter={handleDrag}
-              onDragOver={handleDrag}
-              onDragLeave={handleDrag}
-              onDrop={handleDrop}
-              onClick={triggerChooseFile}
-              className={`border border-dashed rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 min-h-[180px] bg-transparent ${
-                isDragActive 
-                  ? "border-[#10B981] bg-[#10B981]/5" 
-                  : "border-[rgba(255,255,255,0.08)] hover:border-[#10B981]"
-              }`}
-            >
-              <Upload className="size-6 text-[#94A3B8] mb-3 transition-colors" />
-              <span className="text-sm font-medium text-[#F8FAFC] mb-1">
-                Drag & Drop ESG Report
-              </span>
-              <span className="text-xs text-[#94A3B8]">
-                PDF • DOCX • XLSX
-              </span>
-            </div>
-          ) : (
-            /* 4. After Upload state */
-            <div className="border border-[rgba(255,255,255,0.06)] bg-[#0A0F1D] rounded-xl p-6 flex items-center justify-between transition-all duration-200">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/20">
-                  <FileText className="size-8" />
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-medium text-[#F8FAFC] truncate max-w-[240px]">
-                    {file.name}
-                  </span>
-                  <span className="text-xs text-[#94A3B8] mt-0.5">
-                    {formatFileSize(file.size)}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-[#10B981] bg-[#10B981]/10 border border-[#10B981]/20 px-2.5 py-1 rounded-full">
-                  Ready
+          {uploadStatus !== "success" ? (
+            !file ? (
+              <div 
+                onDragEnter={handleDrag}
+                onDragOver={handleDrag}
+                onDragLeave={handleDrag}
+                onDrop={handleDrop}
+                onClick={triggerChooseFile}
+                className={`border border-dashed rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 min-h-[180px] bg-transparent ${
+                  isDragActive 
+                    ? "border-[#10B981] bg-[#10B981]/5" 
+                    : "border-[rgba(255,255,255,0.08)] hover:border-[#10B981]"
+                }`}
+              >
+                <Upload className="size-6 text-[#94A3B8] mb-3 transition-colors" />
+                <span className="text-sm font-medium text-[#F8FAFC] mb-1">
+                  Drag & Drop ESG Report
                 </span>
-                <button 
-                  onClick={handleRemoveFile} 
-                  disabled={uploadStatus === "analyzing"}
-                  className="text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-white/5 rounded-lg p-1.5 transition-all duration-200 cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
-                >
-                  <X className="size-4" />
-                </button>
+                <span className="text-xs text-[#94A3B8]">
+                  PDF • DOCX • XLSX
+                </span>
               </div>
+            ) : (
+              /* After Upload state */
+              <div className="border border-[rgba(255,255,255,0.06)] bg-[#0A0F1D] rounded-xl p-6 flex items-center justify-between transition-all duration-200">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-lg bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/20">
+                    <FileText className="size-8" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium text-[#F8FAFC] truncate max-w-[240px]">
+                      {file.name}
+                    </span>
+                    <span className="text-xs text-[#94A3B8] mt-0.5">
+                      {formatFileSize(file.size)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-semibold text-[#10B981] bg-[#10B981]/10 border border-[#10B981]/20 px-2.5 py-1 rounded-full">
+                    Ready
+                  </span>
+                  <button 
+                    onClick={handleRemoveFile} 
+                    disabled={uploadStatus === "analyzing"}
+                    className="text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-white/5 rounded-lg p-1.5 transition-all duration-200 cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+              </div>
+            )
+          ) : (
+            /* Step 7 — Create PDF Info Card & Step 6 — Document Summary (Shown on Success) */
+            <div className="flex flex-col gap-6 animate-in fade-in duration-300">
+              
+              {/* PDF Info Card */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6 border border-[rgba(255,255,255,0.06)] bg-[#0A0F1D] rounded-xl p-6 text-sm">
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-xs text-[#94A3B8]">Filename</span>
+                  <span className="text-sm font-medium text-[#F8FAFC] truncate" title={file?.name}>
+                    {file?.name}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-[#94A3B8]">Pages</span>
+                  <span className="text-sm font-medium text-[#F8FAFC]">
+                    {resultData?.pages}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-[#94A3B8]">Size</span>
+                  <span className="text-sm font-medium text-[#F8FAFC]">
+                    {file ? formatFileSize(file.size) : "0 KB"}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-[#94A3B8]">Characters</span>
+                  <span className="text-sm font-medium text-[#F8FAFC]">
+                    {resultData?.characters?.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-[#94A3B8]">Status</span>
+                  <div className="flex items-center">
+                    <span className="text-[11px] font-semibold text-[#10B981] bg-[#10B981]/10 border border-[#10B981]/20 px-2.5 py-0.5 rounded-full">
+                      Verified
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Document Summary */}
+              <div className="flex flex-col gap-3">
+                <h3 className="text-sm font-semibold text-[#F8FAFC]">Document Summary</h3>
+                <div className="flex gap-4 text-xs text-[#94A3B8]">
+                  <div>Pages: <span className="text-[#F8FAFC] font-medium">{resultData?.pages}</span></div>
+                  <div>Characters: <span className="text-[#F8FAFC] font-medium">{resultData?.characters?.toLocaleString()}</span></div>
+                </div>
+                <div className="bg-[#030712] border border-[rgba(255,255,255,0.06)] rounded-xl p-5 font-mono text-xs text-zinc-400 whitespace-pre-wrap leading-relaxed select-text max-h-[220px] overflow-y-auto w-full">
+                  {"--------------------------------\n"}
+                  {resultData?.text || "..."}
+                  {"\n--------------------------------"}
+                </div>
+              </div>
+
             </div>
           )}
 
-          {/* 5. Primary Button */}
-          <button
-            onClick={handleUpload}
-            disabled={uploadStatus === "analyzing"}
-            className={`h-14 w-full rounded-xl text-sm font-semibold tracking-wide flex items-center justify-center gap-2 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${
-              uploadStatus === "success"
-                ? "bg-[#10B981] text-[#050816] shadow-md shadow-[#10B981]/10 cursor-default pointer-events-none"
-                : "bg-gradient-to-r from-[#10B981] to-[#14B8A6] text-[#050816] shadow-md"
-            }`}
-          >
-            {uploadStatus === "analyzing" ? (
-              <>
-                <Loader2 className="size-4 animate-spin text-[#050816]" />
-                Analyzing Report
-              </>
-            ) : uploadStatus === "success" ? (
-              <>
-                ✓ Uploaded Successfully
-              </>
-            ) : (
-              "Analyze Report"
-            )}
-          </button>
+          {/* Action Button */}
+          {uploadStatus === "success" ? (
+            <button
+              onClick={handleRemoveFile}
+              className="h-14 w-full rounded-xl text-sm font-semibold tracking-wide flex items-center justify-center gap-2 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg bg-gradient-to-r from-zinc-800 to-zinc-700 text-[#F8FAFC] border border-[rgba(255,255,255,0.06)]"
+            >
+              Upload Another Report
+            </button>
+          ) : (
+            <button
+              onClick={handleUpload}
+              disabled={uploadStatus === "analyzing"}
+              className={`h-14 w-full rounded-xl text-sm font-semibold tracking-wide flex items-center justify-center gap-2 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${
+                uploadStatus === "analyzing"
+                  ? "bg-gradient-to-r from-zinc-800 to-zinc-700 text-[#94A3B8] border border-[rgba(255,255,255,0.06)] cursor-not-allowed"
+                  : "bg-gradient-to-r from-[#10B981] to-[#14B8A6] text-[#050816]"
+              }`}
+            >
+              {uploadStatus === "analyzing" ? (
+                <>
+                  <Loader2 className="size-4 animate-spin text-[#050816]" />
+                  Analyzing Report
+                </>
+              ) : (
+                "Analyze Report"
+              )}
+            </button>
+          )}
 
           {/* 6. Progress bar during analysis */}
           {uploadStatus === "analyzing" && (
@@ -291,14 +356,6 @@ export default function Home() {
                 <Loader2 className="size-3 animate-spin text-[#10B981]" />
                 <span>{ANALYSIS_STEPS[analysisStep]}</span>
               </div>
-            </div>
-          )}
-
-          {/* 7. Results Preview card (Success message) */}
-          {uploadStatus === "success" && (
-            <div className="bg-[#10B981]/5 border border-[#10B981]/10 rounded-xl p-4 flex items-center gap-3 text-[#10B981] text-sm font-medium animate-in fade-in slide-in-from-top-1 duration-200">
-              <CheckCircle2 className="size-5 shrink-0 text-[#10B981]" />
-              <span>✓ Report uploaded successfully</span>
             </div>
           )}
 
