@@ -1,0 +1,6 @@
+{
+  "name": "ReSource AI",
+  "description": "Interactive dark-themed hero section for ReSource AI circular economy brand with cursor-following spotlight reveal.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

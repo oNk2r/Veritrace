@@ -1,0 +1,6 @@
+vehicle_type,emissions_factor_kg_co2_per_km_tonne
+light_commercial_vehicle,0.25
+heavy_duty_truck,0.12
+electric_van,0.05
+average_van,0.20
+default,0.15

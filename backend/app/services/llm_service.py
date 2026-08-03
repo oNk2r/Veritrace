@@ -1,33 +1,34 @@
 import os
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError
+from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from app.schemas.extraction import ESGExtractionResult
-from app.schemas.climatetrace import ClimateTraceCompanyEmissions
-from app.schemas.comparison import ComparisonResult
-from app.schemas.report import AIReportResult
+from app.schemas.waste import WasteAnalysisRequest
 
 logger = logging.getLogger(__name__)
 
+class GeminiAdviceResponse(BaseModel):
+    ai_explanation: str = Field(..., description="Concise explanation of circular matching science, NO title headers, maximum 2 paragraphs or bullet groups.")
+    environmental_benefits: str = Field(..., description="Brief breakdown of carbon offsets and landfill diversion, NO title headers, maximum 3 bullet points.")
+    financial_benefits: str = Field(..., description="Brief breakdown of revenue potential and tipping fees savings, NO title headers, maximum 3 bullet points.")
+    suggested_next_steps: List[str] = Field(..., description="3-5 concrete operational next steps")
+    generated_outreach_email: str = Field(..., description="Customized professional outreach email targeting the buyer contact person")
+
 class LLMService:
     def __init__(self):
-        # Load environment variables from the backend .env
         load_dotenv()
         self.api_key = os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             logger.warning("GEMINI_API_KEY is not set in environment variables.")
         
-        # Initialize the GenAI client. It automatically picks up GEMINI_API_KEY if present,
-        # but passing it explicitly makes it robust.
+        # Initialize GenAI client. It automatically picks up GEMINI_API_KEY.
         self.client = genai.Client(api_key=self.api_key)
-        # Use the fast, accurate model for structured data extraction
         self.model_name = "gemini-2.5-flash"
 
-    # Retry up to 3 times with exponential backoff for transient API errors (e.g. Rate Limits / 429)
     @retry(
         reraise=True,
         stop=stop_after_attempt(3),
@@ -35,150 +36,127 @@ class LLMService:
         retry=retry_if_exception_type(APIError)
     )
     def _call_gemini_with_retry(self, prompt: str, system_instruction: str) -> types.GenerateContentResponse:
-        """Helper to invoke Gemini API with tenacity retry logic."""
-        response = self.client.models.generate_content(
+        """Invokes Gemini API with structured GeminiAdviceResponse output."""
+        return self.client.models.generate_content(
             model=self.model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
                 response_mime_type="application/json",
-                response_schema=ESGExtractionResult,
-                temperature=0.1,  # Low temperature for precise, deterministic extraction
+                response_schema=GeminiAdviceResponse,
+                temperature=0.3,
             ),
         )
-        return response
 
-    @retry(
-        reraise=True,
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type(APIError)
-    )
-    def _call_gemini_report_with_retry(self, prompt: str, system_instruction: str) -> types.GenerateContentResponse:
-        """Helper to call Gemini API for report generation."""
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                response_mime_type="application/json",
-                response_schema=AIReportResult,
-                temperature=0.2,  # Low temperature for strict factuality and neutral tone
-            ),
-        )
-        return response
-
-    def extract_esg_data(self, cleaned_text: str) -> Optional[ESGExtractionResult]:
-        """
-        Analyzes raw cleaned PDF text to extract structured ESG data conforming to
-        ESGExtractionResult schema.
-        """
+    def get_waste_advice(
+        self,
+        request: WasteAnalysisRequest,
+        standard_material: str,
+        top_match: Dict[str, Any]
+    ) -> GeminiAdviceResponse:
+        """Queries Gemini to generate detailed circular recommendations and custom outreach email templates."""
         if not self.api_key:
-            return {"error": "Gemini API key is missing. Please set GEMINI_API_KEY in backend/.env."}
-
-        if not cleaned_text:
-            return {"error": "No text provided for analysis."}
+            logger.warning("Gemini API key is missing. Using local fallback generator.")
+            return self._generate_fallback_advice(request, standard_material, top_match)
 
         system_instruction = (
-            "You are an expert ESG and greenhouse gas emissions auditor. "
-            "Your task is to analyze raw text extracted from a sustainability or ESG report, "
-            "locate direct emissions disclosures, and output structured data.\n\n"
-            "CRITICAL RULES FOR UNIT CONVERSION:\n"
-            "You MUST normalize all emissions values to standard 'metric tons CO2e' (tCO2e / mtCO2e).\n"
-            "If the report lists emissions in other units, convert them as follows:\n"
-            "- If emissions are listed in 'Million metric tons', 'million tonnes', or 'Mt', multiply the value by 1,000,000.\n"
-            "  Example: '2.4 Mt CO2e' or '2.4 million metric tons' must be output as 2400000.0\n"
-            "- If emissions are listed in 'thousand metric tons', 'kilotons', or 'kt', multiply the value by 1,000.\n"
-            "  Example: '144.96 kt' must be output as 144960.0\n"
-            "- If emissions are listed in metric tons (tCO2e or mtCO2e), keep the original number.\n"
-            "- Do not guess or extrapolate. If a metric or field is not mentioned in the text, leave it as null.\n\n"
-            "SPECIFIC EMISSIONS EXTRACTION DETAILS:\n"
-            "- scope1: Extract direct Scope 1 emissions. Skip any indirect Scope 2 or value-chain Scope 3 disclosures.\n"
-            "- reporting_standard: Note if they report under GHG Protocol, GRI, SASB, or other frameworks."
+            "You are ReSource AI, a world-class Circular Economy Decision Engine and Hackathon Mentor.\n"
+            "Your task is to analyze a business's waste and the best local buyer matching calculations, "
+            "then generate an extremely concise, high-impact executive summary and a custom outreach email.\n\n"
+            "CRITICAL REASONING INSTRUCTIONS:\n"
+            "1. DO NOT include any title headers (like #, ##, ###) in the ai_explanation, environmental_benefits, or financial_benefits fields. Start directly with the descriptions.\n"
+            "2. Keep explanations very brief: 2-3 short sentences maximum. Use bullet lists instead of long prose.\n"
+            "3. Briefly explain the material compatibility (e.g., 'Coffee grounds supply nitrogen to mushroom cultures').\n"
+            "4. Personalize the outreach email template concisely using actual buyer contacts, logistics distance, and circular metrics."
         )
 
         user_prompt = (
-            f"Analyze the following extracted ESG report text and extract the required fields:\n\n"
-            f"--- START OF TEXT ---\n"
-            f"{cleaned_text}\n"
-            f"--- END OF TEXT ---\n"
+            f"--- WASTE INTAKE DETAILS ---\n"
+            f"Business Name: {request.business_name}\n"
+            f"Industry: {request.industry}\n"
+            f"Input Waste: '{request.waste_type}' (Mapped standard: {standard_material})\n"
+            f"Description: {request.description}\n"
+            f"Quantity Generated: {request.quantity} kg per {request.frequency}\n"
+            f"Location: {request.location}\n"
+            f"Current Disposal Route: {request.current_disposal_method}\n\n"
+            f"--- HIGHEST VALUE CIRCULAR PARTNER MATCH ---\n"
+            f"Buyer Business: {top_match['buyer_name']}\n"
+            f"Buyer Industry: {top_match['industry']}\n"
+            f"Logistics Distance: {top_match['distance_km']} km\n"
+            f"Estimated Monthly Revenue: ₹{top_match['potential_monthly_revenue']:,}\n"
+            f"Carbon Saved: {top_match['carbon_saved_kg_monthly']} kg CO2e/month\n"
+            f"Landfill Diverted: {top_match['landfill_diverted_kg_monthly']} kg/month\n"
+            f"Shipping Emissions: {top_match['transportation_carbon_estimate_kg']} kg CO2e/month\n"
+            f"Circular Economy Index: {top_match['circular_economy_score']}/100\n"
+            f"Buyer Contact Point: {top_match['contact_person']}\n"
+            f"Contact Number: {top_match['phone']}\n"
+            f"Delivery Location: {top_match['address']}\n"
+            f"Opportunity: {top_match['opportunity']['opportunity_name']} - {top_match['opportunity']['process_description']}\n\n"
+            f"Please apply circular logic to generate the response matching the schema."
         )
 
         try:
             response = self._call_gemini_with_retry(user_prompt, system_instruction)
-            
-            # Since we set response_schema, response.text is guaranteed to be valid JSON matching ESGExtractionResult
-            # We parse the Pydantic model directly from the JSON string
             if response.text:
-                result = ESGExtractionResult.model_validate_json(response.text)
-                return result
+                return GeminiAdviceResponse.model_validate_json(response.text)
             else:
-                logger.error("Gemini returned an empty response.")
-                return {"error": "Received empty response from Gemini."}
-                
-        except APIError as e:
-            logger.error(f"Gemini API Error: {str(e)}")
-            return {"error": f"Gemini API Error: {str(e)}"}
+                raise ValueError("Received empty response from Gemini.")
         except Exception as e:
-            logger.error(f"Unexpected error during extraction: {str(e)}")
-            return {"error": f"Failed to extract ESG data: {str(e)}"}
+            logger.error(f"Error calling Gemini in LLMService: {str(e)}")
+            return self._generate_fallback_advice(request, standard_material, top_match)
 
-    def generate_verification_report(
+    def _generate_fallback_advice(
         self,
-        esg_data: ESGExtractionResult,
-        ct_data: ClimateTraceCompanyEmissions,
-        comp_result: ComparisonResult
-    ) -> Optional[AIReportResult]:
-        """
-        Generates an objective explainable AI report analyzing ESG disclosures
-        and Climate TRACE estimates.
-        """
-        if not self.api_key:
-            return {"error": "Gemini API key is missing."}
-
-        system_instruction = (
-            "You are an expert, independent ESG auditor and climate scientist. "
-            "Your task is to analyze the side-by-side comparison of a company's self-reported ESG disclosures "
-            "and independent greenhouse gas estimates from Climate TRACE (satellite and physical asset models).\n\n"
-            "CRITICAL FORMATTING & STRUCTURE RULES:\n"
-            "- Do NOT generate long paragraphs. Use concise sections, bullet points, short phrases, and summaries.\n"
-            "- You must return output that maps directly to the AIReportResult schema:\n"
-            "  1. audit_verdict: A brief 1-2 sentence statement of overall discrepancy status.\n"
-            "  2. evidence_summary: A bulleted list of the exact compared values, citing ESG and Climate TRACE figures.\n"
-            "  3. key_findings: A bulleted list of the statistical facts, standards, and parity checks.\n"
-            "  4. possible_causes: A bulleted list of technical and organizational causes for discrepancy (boundaries, timing, point-source methods).\n"
-            "  5. confidence_explanation: A bulleted list outlining the confidence rating factors.\n"
-            "  6. recommended_next_steps: A bulleted list of constructive, actionable next steps.\n"
-            "  7. limitations: A bulleted list of contextual satellite and corporate limitations.\n"
-            "  8. disclaimer: A short, standard legal disclaimer noting this is an estimate-based report.\n\n"
-            "CRITICAL TONE RULES:\n"
-            "1. You MUST maintain a strictly neutral, professional, and corporate tone. Never sound like a generic ChatGPT response.\n"
-            "2. NEVER accuse the company of dishonesty, greenwashing, fraud, or misreporting. Use objective language. "
-            "For example: 'The discrepancy potentially indicates differing organizational boundaries, such as regional subsidiary scope aggregation.'\n"
-            "3. Base all explanations directly on the input evidence. Never fabricate causes. Explicitly state uncertainty when data is insufficient."
+        request: WasteAnalysisRequest,
+        standard_material: str,
+        top_match: Dict[str, Any]
+    ) -> GeminiAdviceResponse:
+        """Fallback advice generator for offline or missing API key scenarios."""
+        opp_name = top_match['opportunity']['opportunity_name']
+        buyer_name = top_match['buyer_name']
+        contact = top_match['contact_person']
+        dist = top_match['distance_km']
+        rev = top_match['potential_monthly_revenue']
+        co2 = top_match['carbon_saved_kg_monthly']
+        qty = top_match['landfill_diverted_kg_monthly']
+        
+        explanation = (
+            f"The waste stream **{request.waste_type}** ({standard_material}) directly matches the requirements of **{buyer_name}** for **{opp_name}**.\n\n"
+            f"* **Chemistry Match**: Clean, high-purity byproduct replaces virgin feedstocks.\n"
+            f"* **Logistics**: Located **{dist} km** away, minimizing Scope 3 transportation footprint."
         )
 
-        user_prompt = (
-            f"Please generate the explainable AI report using the following inputs:\n\n"
-            f"--- CORPORATE ESG DATA ---\n"
-            f"{esg_data.model_dump_json(indent=2)}\n\n"
-            f"--- CLIMATE TRACE DATA ---\n"
-            f"{ct_data.model_dump_json(indent=2)}\n\n"
-            f"--- MATHEMATICAL COMPARISON RESULTS ---\n"
-            f"{comp_result.model_dump_json(indent=2)}\n\n"
+        env_benefits = (
+            f"* **Landfill Diverted**: **{qty:,} kg/month** kept out of municipal dumpsites.\n"
+            f"* **Net Carbon Savings**: **{co2:,} kg CO2e/month** (transport emissions factored in)."
         )
 
-        try:
-            response = self._call_gemini_report_with_retry(user_prompt, system_instruction)
-            if response.text:
-                result = AIReportResult.model_validate_json(response.text)
-                return result
-            else:
-                logger.error("Gemini returned empty text for the report.")
-                return {"error": "Received empty response for the AI report."}
-        except APIError as e:
-            logger.error(f"Gemini API Error during report generation: {str(e)}")
-            return {"error": f"Gemini API Error: {str(e)}"}
-        except Exception as e:
-            logger.error(f"Unexpected error during report generation: {str(e)}")
-            return {"error": f"Failed to generate AI report: {str(e)}"}
+        fin_benefits = (
+            f"* **Direct Sales Revenue**: Estimated **₹{rev:,.2f}/month**.\n"
+            f"* **Operational Savings**: Zero tipping fees or hauling costs."
+        )
+
+        steps = [
+            f"Ensure {standard_material} is sorted cleanly at generation points.",
+            f"Contact {contact} ({top_match['phone']}) to verify byproduct sample quality.",
+            f"Setup collection schedule matching their {top_match['opportunity']['process_description']} process."
+        ]
+
+        email = (
+            f"Subject: Circular supply partnership: {standard_material} matching | ReSource AI\n\n"
+            f"Dear {contact},\n\n"
+            f"I am writing from {request.business_name}. We generate {request.quantity} kg/{request.frequency} of {request.waste_type} ({standard_material}).\n\n"
+            f"Our circular analysis shows that matching this with your {opp_name} operations at {buyer_name} would divert {qty:,} kg/month and offset {co2:,} kg of CO2e.\n\n"
+            f"We would love to send you a sample of our byproduct. Let us know if you have time for a brief call next week to discuss logistics.\n\n"
+            f"Best regards,\n\n"
+            f"Operations Lead\n"
+            f"{request.business_name}"
+        )
+
+        return GeminiAdviceResponse(
+            ai_explanation=explanation,
+            environmental_benefits=env_benefits,
+            financial_benefits=fin_benefits,
+            suggested_next_steps=steps,
+            generated_outreach_email=email
+        )

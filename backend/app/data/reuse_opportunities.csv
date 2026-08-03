@@ -1,0 +1,13 @@
+opportunity_id,material_id,opportunity_name,process_description,value_per_unit_inr,suitability_score
+mushroom_farming,coffee_grounds,Green Mushroom Cultivation,Used as nutrient-rich substrate for farming oyster mushrooms,18.0,95
+bio_pellets,coffee_grounds,Biomass Pellet Production,Dried and compressed into eco-friendly heating pellets,12.0,85
+compost_additive,coffee_grounds,Organic Composting,Added to industrial compost to adjust nitrogen ratios,5.0,75
+particle_board,sawdust,Particle Board Manufacturing,Combined with resin to create low-cost furniture boards,8.0,90
+wood_pellets,sawdust,Wood Pellet Production,Pressed into clean-burning fuel pellets for stoves,10.0,85
+shoddy_fiber,textile_scraps,Shoddy Fiber Production,Shredded and carded into recycled insulation and stuffing fiber,25.0,92
+plastic_pellets,plastic_scrap,Regranulation and Pelletizing,Melted and extruded into high-quality recycled plastic pellets,35.0,95
+cullet_smelting,glass_waste,Glass Container Remanufacturing,Crushed and melted in furnace to produce new bottles,15.0,98
+scrap_smelting,metal_scrap,Secondary Metal Smelting,Refined in furnace to make new steel or aluminum alloys,45.0,99
+biogas_digestion,food_waste,Anaerobic Biogas Digestion,Processed in anaerobic digester to produce methane gas and digestate,6.0,90
+aggregate_recycling,construction_debris,Recycled Concrete Aggregate,Crushed to replace virgin gravel in road bases and concrete mixes,4.0,88
+bioethanol_production,agricultural_waste,Bioethanol Fermentation,Hydrolyzed and fermented to produce industrial-grade bioethanol,14.0,85

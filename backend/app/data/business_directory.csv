@@ -1,0 +1,12 @@
+business_id,business_name,industry,location,latitude,longitude,materials_accepted,capacity_kg_week,contact_person,phone,address
+green_mushroom_farm,Green Mushroom Farm,Agriculture,Hadapsar,18.5089,73.9260,"coffee_grounds",1000,Rahul Patil,+91 98765 43210,"Gate No. 42, Hadapsar Industrial Estate, Pune"
+eco_pellets_pune,EcoPellets Biofuels,Energy,Chakan,18.7500,73.8500,"coffee_grounds,sawdust",5000,Sanjay Joshi,+91 98765 43211,"Plot 12, MIDC Chakan Phase 2, Pune"
+pune_compost_co,Pune Organic Composting Co.,Agriculture,Talegaon,18.7300,73.6800,"coffee_grounds,food_waste,agricultural_waste",8000,Amit Shinde,+91 98765 43212,"Talegaon Dabhade Road, Pune"
+deccan_boards,Deccan Particle Boards,Manufacturing,Chakan,18.7500,73.8500,"sawdust",15000,Vijay Kamble,+91 98765 43213,"Plot 115, MIDC Chakan Phase 1, Pune"
+maharashtra_shredders,Maharashtra Shredders & Fibers,Textiles,Pimpri,18.6298,73.7997,"textile_scraps",4000,Ramesh Shah,+91 98765 43214,"Block H, Pimpri Industrial Area, Pune"
+poly_recycle_pune,PolyRecycle Industries,Recycling,Chakan,18.7500,73.8500,"plastic_scrap",10000,Nitin Deshmukh,+91 98765 43215,"Plot 88, MIDC Chakan Phase 3, Pune"
+western_glass_smelters,Western Glass Smelters,Manufacturing,Hadapsar,18.5089,73.9260,"glass_waste",12000,Karan Malhotra,+91 98765 43216,"Hadapsar Industrial Estate, Road No. 3, Pune"
+pune_steel_reforming,Pune Steel Reforming Ltd.,Metallurgical,Chakan,18.7500,73.8500,"metal_scrap",20000,Vikram Salunkhe,+91 98765 43217,"Plot 232, Chakan MIDC, Pune"
+chaitanya_biogas,Chaitanya Biogas Plant,Energy,Talegaon,18.7300,73.6800,"food_waste",6000,Dinesh Mehta,+91 98765 43218,"Talegaon-Chakan Road, Pune"
+sahyadri_aggregates,Sahyadri Recycled Aggregates,Construction,Hinjawadi,18.5913,73.7389,"construction_debris",25000,Sunil Kadam,+91 98765 43219,"Hinjawadi Phase 3, Near IT Park, Pune"
+agricultural_power_solutions,Sahyadri Bio-Fuels,Energy,Talegaon,18.7300,73.6800,"agricultural_waste",10000,Anand Rao,+91 98765 43220,"MIDC Talegaon, Pune"

@@ -1,0 +1,10 @@
+industry_id,industry_name,typical_waste_produced
+coffee_shop,Coffee Shop,coffee_grounds,food_waste
+textile_mill,Textile Mill,textile_scraps
+sawmill,Sawmill,sawdust
+carpentry,Carpentry Shop,sawdust
+beverage_bottling,Beverage Bottling,glass_waste,plastic_scrap
+construction_firm,Construction Firm,construction_debris,metal_scrap
+agriculture,Farming & Agriculture,agricultural_waste
+food_processing,Food Processing,food_waste,agricultural_waste
+manufacturing,General Manufacturing,plastic_scrap,metal_scrap

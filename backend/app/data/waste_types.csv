@@ -1,0 +1,29 @@
+synonym,standard_material_id
+used coffee powder,coffee_grounds
+coffee waste,coffee_grounds
+spent coffee grounds,coffee_grounds
+coffee grinds,coffee_grounds
+wood dust,sawdust
+carpentry waste,sawdust
+shavings,sawdust
+wood shavings,sawdust
+fabric pieces,textile_scraps
+garment waste,textile_scraps
+cotton waste,textile_scraps
+scrap plastic,plastic_scrap
+polyethylene scrap,plastic_scrap
+plastic bottles,plastic_scrap
+cullet,glass_waste
+shattered glass,glass_waste
+iron shavings,metal_scrap
+steel scraps,metal_scrap
+metal filings,metal_scrap
+leftover food,food_waste
+organic waste,food_waste
+rubble,construction_debris
+broken bricks,construction_debris
+concrete waste,construction_debris
+paddy husk,agricultural_waste
+bagasse,agricultural_waste
+crop residues,agricultural_waste
+straw,agricultural_waste

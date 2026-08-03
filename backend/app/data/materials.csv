@@ -1,0 +1,10 @@
+material_id,material_name,category,description
+coffee_grounds,Coffee Grounds,Organic Waste,Spent coffee grounds from commercial brewing
+sawdust,Sawdust,Wood Waste,Fine wood particles from sawmills and carpentry
+textile_scraps,Textile Scraps,Fabric Waste,Leftover fabrics from garment manufacturing
+plastic_scrap,Plastic Scrap,Polymer Waste,Industrial plastic cut-offs and scraps
+glass_waste,Glass Waste,Silicate Waste,Broken glass and manufacturing scrap
+metal_scrap,Metal Scrap,Metallurgical Waste,Scrap metal, filings, and cut-offs
+food_waste,Food Waste,Organic Waste,Unsold food, kitchen scraps, and organic leftovers
+construction_debris,Construction Debris,Mineral Waste,Concrete, bricks, and drywall waste
+agricultural_waste,Agricultural Waste,Organic Waste,Crop residues, husks, and agricultural byproducts
