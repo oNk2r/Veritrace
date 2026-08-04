@@ -27,12 +27,11 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { RevealLayer } from './components/RevealLayer';
+import branchingLandscapeBase from './assets/branching_landscape_base.png';
+import branchingLandscapeGlow from './assets/branching_landscape_glow.png';
 
-const BG_IMAGE_1 =
-  'https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_20260609_195923_b0ba8ace-1d1d-4f2c-9a28-1ab84b330680.png&w=1280&q=85';
-
-const BG_IMAGE_2 =
-  'https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_20260609_201152_bba90a12-bf12-459f-91f0-51f237dbaf3b.png&w=1280&q=85';
+const BG_IMAGE_1 = branchingLandscapeBase;
+const BG_IMAGE_2 = branchingLandscapeGlow;
 
 const NAV_ITEMS = ['Home', 'Analyze', 'Dashboard', 'Taxonomy', 'Partners', 'Live Map'];
 
@@ -145,10 +144,109 @@ export default function App() {
 
   // Map state
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+  const [hoveredConnection, setHoveredConnection] = useState<any | null>(null);
+
+  // AI Showcase Demo States
+  const [demoActiveIndex, setDemoActiveIndex] = useState(0);
+  const [demoStep, setDemoStep] = useState(0);
+  const [demoRunning, setDemoRunning] = useState(false);
+
+  const runDemoPipeline = (index: number) => {
+    setDemoActiveIndex(index);
+    setDemoStep(0);
+    setDemoRunning(true);
+
+    const stepIntervals = [1, 2, 3, 4, 5];
+    stepIntervals.forEach((step) => {
+      setTimeout(() => {
+        setDemoStep(step);
+        if (step === 5) {
+          setDemoRunning(false);
+        }
+      }, step * 800);
+    });
+  };
 
   const mouse = useRef({ x: -999, y: -999 });
   const smooth = useRef({ x: -999, y: -999 });
   const rafRef = useRef<number | null>(null);
+  const particlesCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Particles generator for background embers and dust
+  useEffect(() => {
+    if (activeTab !== 'Home') return;
+    const canvas = particlesCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animationFrameId: number;
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+
+    const handleResize = () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    };
+    window.addEventListener('resize', handleResize);
+
+    interface Particle {
+      x: number;
+      y: number;
+      size: number;
+      speedX: number;
+      speedY: number;
+      opacity: number;
+      color: string;
+    }
+
+    const particles: Particle[] = [];
+    const maxParticles = 50;
+
+    for (let i = 0; i < maxParticles; i++) {
+      particles.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        size: Math.random() * 2.5 + 0.5,
+        speedX: Math.random() * 0.3 - 0.15,
+        speedY: -(Math.random() * 0.6 + 0.2),
+        opacity: Math.random() * 0.4 + 0.15,
+        color: Math.random() > 0.5 ? 'rgba(232, 112, 42, 0.5)' : 'rgba(255, 255, 255, 0.25)'
+      });
+    }
+
+    const draw = () => {
+      ctx.clearRect(0, 0, width, height);
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        p.x += p.speedX;
+        p.y += p.speedY;
+
+        if (p.y < -10) {
+          p.y = height + 10;
+          p.x = Math.random() * width;
+        }
+        if (p.x < -10 || p.x > width + 10) {
+          p.x = Math.random() * width;
+        }
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.opacity;
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1.0;
+      animationFrameId = requestAnimationFrame(draw);
+    };
+
+    draw();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [activeTab]);
 
   // Mouse Move listener for spotlight
   useEffect(() => {
@@ -376,6 +474,49 @@ export default function App() {
     setTimeout(() => setEmailCopied(false), 2000);
   };
 
+  const DEMO_PRESETS = [
+    {
+      input: "We generate 250kg of coffee grounds every week.",
+      detected: "Coffee Grounds",
+      category: "Organic Waste",
+      uses: ["Mushroom Farm Cultivation", "Biogas Feedstock", "Premium Compost Soil"],
+      match: "Green Mushroom Farm (Hadapsar)",
+      distance: "4.2 km",
+      carbon: "162 kg CO2 / week",
+      revenue: "₹1,250 / week"
+    },
+    {
+      input: "Our machine shop produces 1.2 tons of steel scraps monthly.",
+      detected: "Machined Metal Scrap",
+      category: "Metallurgical Waste",
+      uses: ["Smelting Foundry Re-melting", "Sintering Agglomerate", "Reinforcement Bars"],
+      match: "Pune Steel Reforming Ltd (Chakan)",
+      distance: "18.5 km",
+      carbon: "1,440 kg CO2 / month",
+      revenue: "₹26,400 / month"
+    },
+    {
+      input: "We have 800kg of treated wood sawdust from timber sizing.",
+      detected: "Sawdust & Wood Shavings",
+      category: "Wood Waste",
+      uses: ["Bio-pellet Fuels", "Particle Board Core Material", "Animal Bedding Litter"],
+      match: "Deccan Particle Boards (Chakan)",
+      distance: "12.1 km",
+      carbon: "520 kg CO2 / month",
+      revenue: "₹3,600 / month"
+    },
+    {
+      input: "Our factory throws away 400kg of synthetic textile clippings weekly.",
+      detected: "Textile Fabric Scraps",
+      category: "Fabric Waste",
+      uses: ["Thermal Sound Insulation Padding", "Industrial Rags", "Coarse Yarn Retexturing"],
+      match: "Maharashtra Shredders & Fibers (Pimpri)",
+      distance: "8.7 km",
+      carbon: "380 kg CO2 / week",
+      revenue: "₹3,200 / week"
+    }
+  ];
+
   // Preset taxonomies for rendering
   const TAXONOMY_DATA = [
     { id: 'coffee_grounds', name: 'Coffee Grounds', category: 'Organic Waste', desc: 'Spent coffee grounds from commercial brewing operations. High in nitrogen, ideal for mushroom cultivation and premium organic composting.', synonyms: 'used coffee, coffee waste, powder grinds', value: '₹5.00/kg' },
@@ -412,6 +553,69 @@ export default function App() {
     { name: "Talegaon Energy Park", id: "talegaon", cx: 120, cy: 150, lat: 18.7300, lon: 73.6800, desc: "Composting & Biogas Plants", partners: 3 },
     { name: "Hinjawadi IT & Tech Park", id: "hinjawadi", cx: 180, cy: 300, lat: 18.5913, lon: 73.7389, desc: "Aggregate Construction Recycling Centers", partners: 1 },
     { name: "Pimpri Manufacturing Belt", id: "pimpri", cx: 240, cy: 260, lat: 18.6298, lon: 73.7997, desc: "Textile & Shredding Mills", partners: 1 }
+  ];
+
+  const MAP_CONNECTIONS = [
+    {
+      id: "chakan-hadapsar",
+      from: "chakan",
+      to: "hadapsar",
+      fromName: "Chakan Industrial Zone",
+      toName: "Hadapsar Regional Hub",
+      material: "Machined Steel Scrap",
+      distance: "23.4 km",
+      revenue: "₹28,500",
+      carbon: "1,200 kg CO2",
+      x1: 300, y1: 120, x2: 420, y2: 400
+    },
+    {
+      id: "talegaon-chakan",
+      from: "talegaon",
+      to: "chakan",
+      fromName: "Talegaon Energy Park",
+      toName: "Chakan Industrial Zone",
+      material: "Organic Bio-pellets",
+      distance: "15.1 km",
+      revenue: "₹8,400",
+      carbon: "480 kg CO2",
+      x1: 120, y1: 150, x2: 300, y2: 120
+    },
+    {
+      id: "hinjawadi-pimpri",
+      from: "hinjawadi",
+      to: "pimpri",
+      fromName: "Hinjawadi IT & Tech Park",
+      toName: "Pimpri Manufacturing Belt",
+      material: "HDPE Plastic Granules",
+      distance: "9.2 km",
+      revenue: "₹14,500",
+      carbon: "720 kg CO2",
+      x1: 180, y1: 300, x2: 240, y2: 260
+    },
+    {
+      id: "pimpri-chakan",
+      from: "pimpri",
+      to: "chakan",
+      fromName: "Pimpri Manufacturing Belt",
+      toName: "Chakan Industrial Zone",
+      material: "Synthetic Textile Fiber",
+      distance: "16.8 km",
+      revenue: "₹9,200",
+      carbon: "580 kg CO2",
+      x1: 240, y1: 260, x2: 300, y2: 120
+    },
+    {
+      id: "hadapsar-pune",
+      from: "hadapsar",
+      to: "pune",
+      fromName: "Hadapsar Regional Hub",
+      toName: "Pune Center (FC Road)",
+      material: "Standardized Glass Cullet",
+      distance: "11.5 km",
+      revenue: "₹6,100",
+      carbon: "320 kg CO2",
+      x1: 420, y1: 400, x2: 280, y2: 380
+    }
   ];
 
   return (
@@ -530,50 +734,64 @@ export default function App() {
       {activeTab === 'Home' && (
         <div className="relative">
           {/* Spotlight Hero Section */}
-          <section className="relative w-full overflow-hidden h-screen bg-black" style={{ height: '100dvh' }}>
-            {/* Layer 1: Base Image (z-10) with slow zoom */}
+          <section className="relative w-full overflow-hidden h-screen bg-black flex flex-col justify-between p-6 sm:p-12 md:p-20 md:px-24 pt-28 pb-10 sm:pb-14" style={{ height: '100dvh' }}>
+            {/* Layer 1: Base Image (z-10) with slow float and zoom */}
             <div
-              className="absolute inset-0 bg-center bg-cover bg-no-repeat z-10 hero-zoom"
+              className="absolute inset-0 bg-center bg-cover bg-no-repeat z-10 animate-slow-float"
               style={{ backgroundImage: `url(${BG_IMAGE_1})` }}
             />
 
-            {/* Layer 2: Reveal Image (z-30) inside spotlight mask */}
-            <RevealLayer image={BG_IMAGE_2} cursorX={cursorPos.x} cursorY={cursorPos.y} />
+            {/* Layer 2: Reveal Image (z-30) inside spotlight mask, animated in sync */}
+            <RevealLayer image={BG_IMAGE_2} cursorX={cursorPos.x} cursorY={cursorPos.y} className="animate-slow-float" />
 
-            {/* Layer 3: Heading */}
-            <div className="absolute top-[20%] left-0 right-0 flex flex-col items-center text-center px-5 pointer-events-none z-50">
-              <h1 className="text-white leading-[0.95]">
-                <span className="block font-playfair italic font-normal text-6xl sm:text-7xl md:text-8xl hero-anim hero-reveal" style={{ letterSpacing: '-0.05em', animationDelay: '0.25s' }}>
-                  Waste holds
-                </span>
-                <span className="block font-normal text-6xl sm:text-7xl md:text-8xl -mt-1 hero-anim hero-reveal" style={{ letterSpacing: '-0.08em', animationDelay: '0.42s' }}>
-                  tales of value
-                </span>
+            {/* Layer 2.5: Floating Particle Canvas Overlay */}
+            <canvas
+              ref={particlesCanvasRef}
+              className="absolute inset-0 pointer-events-none z-45 opacity-60"
+            />
+
+            {/* Layer 3: Overlapping Typography */}
+            <div className="relative z-50 max-w-4xl pointer-events-none text-left select-none font-sans mt-2">
+              <span className="inline-block text-xs font-semibold tracking-widest text-[#e8702a] uppercase bg-[#e8702a]/10 px-3.5 py-1.5 rounded-full mb-5">
+                ReSource AI // Material Intelligence
+              </span>
+              <h1 className="text-white font-extrabold text-4xl sm:text-6xl md:text-7xl lg:text-8xl leading-[0.9] tracking-[-0.04em] uppercase">
+                Every <span className="font-playfair italic font-light lowercase tracking-tight normal-case text-[#e8702a]">by-product</span> <br/>
+                deserves another purpose.
               </h1>
-            </div>
-
-            {/* Layer 4: Bottom-Left Description */}
-            <div className="hidden sm:block absolute bottom-14 left-10 md:left-14 max-w-[280px] z-50 hero-anim hero-fade pointer-events-none" style={{ animationDelay: '0.7s' }}>
-              <p className="text-sm text-white/80 leading-relaxed font-light">
-                Every stream of byproduct records a chapter of circular potential, from organic coffee grinds to timber cutoffs, waiting to be geolocated and reborn.
+              <p className="text-white/60 font-light text-sm sm:text-base md:text-lg max-w-xl mt-6 leading-relaxed normal-case">
+                We map secondary material chemistry to regional industrial sinks—powering a search engine for the circular economy.
               </p>
             </div>
 
-            {/* Layer 5: Bottom-Right CTA and Description */}
-            <div className="absolute bottom-10 sm:bottom-24 left-5 right-5 sm:left-auto sm:right-10 md:right-14 max-w-full sm:max-w-[280px] flex flex-col items-start gap-4 sm:gap-5 z-50 hero-anim hero-fade" style={{ animationDelay: '0.85s' }}>
-              <p className="text-xs sm:text-sm text-white/80 leading-relaxed font-light">
-                Our decision engine geolocates regional buyers to trace how secondary materials, logistics, and carbon math combine to eliminate landfill waste.
-              </p>
-              <button
-                onClick={() => {
-                  setActiveTab('Analyze');
-                  triggerToast("Let's analyze your waste stream.");
-                }}
-                className="bg-[#e8702a] hover:bg-[#d2611f] text-white text-sm font-semibold px-7 py-3 rounded-full transition-all hover:scale-[1.03] active:scale-95 hover:shadow-lg hover:shadow-[#e8702a]/30 pointer-events-auto cursor-pointer flex items-center gap-2"
-              >
-                <span>Find Matches</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+            {/* Bottom row containing detailed descriptions and call-to-actions */}
+            <div className="relative z-50 flex flex-col md:flex-row md:items-end justify-between gap-8 w-full mt-auto">
+              
+              {/* Bottom-Left Detail */}
+              <div className="hidden md:block max-w-[320px] text-left font-sans pointer-events-none">
+                <p className="text-[11px] uppercase tracking-wider text-[#e8702a] font-semibold mb-2">Branching Material Landscape</p>
+                <p className="text-xs text-white/50 leading-relaxed font-light normal-case">
+                  Hover to trace how coffee grounds, polymer flakes, textile scraps, and wood shavings transition into structural steel, compost, and bio-feedstock.
+                </p>
+              </div>
+
+              {/* Bottom-Right CTA and Description */}
+              <div className="max-w-full sm:max-w-[340px] flex flex-col items-start gap-4 font-sans text-left">
+                <p className="text-xs sm:text-sm text-white/70 leading-relaxed font-light normal-case">
+                  Our decision engine geolocates regional buyers to calculate Scope 3 logistics routing and carbon offsets.
+                </p>
+                <button
+                  onClick={() => {
+                    setActiveTab('Analyze');
+                    triggerToast("Opening Ingestion Form...");
+                  }}
+                  className="bg-[#e8702a] hover:bg-[#d2611f] text-white text-sm font-semibold px-8 py-3.5 rounded-full transition-all hover:scale-[1.03] active:scale-95 hover:shadow-lg hover:shadow-[#e8702a]/30 pointer-events-auto cursor-pointer flex items-center gap-2"
+                >
+                  <span>Log Material Stream</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+
             </div>
           </section>
 
@@ -581,98 +799,514 @@ export default function App() {
           <section className="bg-neutral-950 border-t border-white/10 py-24 px-6 relative z-50">
             <div className="max-w-7xl mx-auto">
               
-              {/* Live Eco Tracker Dashboard Panel */}
-              <div className="mb-24 text-center">
+              {/* Material Flow Pipelines */}
+              <div className="mb-28 text-left font-sans">
                 <span className="text-xs font-semibold tracking-widest text-[#e8702a] uppercase bg-[#e8702a]/10 px-3.5 py-1.5 rounded-full">
-                  Ecosystem Live Tracker
+                  Material Flow Pipelines
                 </span>
-                <h2 className="text-3xl sm:text-5xl font-playfair font-normal italic text-white mt-6 mb-4">
-                  Aggregated Circular Impacts
+                <h2 className="text-3xl sm:text-5xl font-extrabold text-white mt-6 mb-4 tracking-tight uppercase">
+                  Value is in the routing.
                 </h2>
-                <p className="text-white/60 max-w-xl mx-auto font-light text-sm sm:text-base">
-                  Real-time database analytics tracking circular redirections completed by regional companies near Pune.
+                <p className="text-white/60 max-w-xl font-light text-sm sm:text-base normal-case">
+                  Each card represents an active circular match, transforming raw industrial waste streams into raw material assets.
                 </p>
 
-                {/* Counters row */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mt-16 text-left">
-                  <div className="bg-black/30 border border-white/5 rounded-3xl p-6 hover:border-white/10 transition-all duration-300">
-                    <Leaf className="w-8 h-8 text-emerald-400 mb-4" />
-                    <div className="text-2xl sm:text-4xl font-bold text-white font-mono">15.4 <span className="text-lg">Tons</span></div>
-                    <div className="text-xs text-white/50 uppercase mt-2 tracking-wider">CO2 Emissions Saved</div>
+                {/* Micro-story cards grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-16">
+                  
+                  {/* Micro-story 1 */}
+                  <div className="bg-neutral-900/60 border border-white/10 rounded-3xl p-8 relative overflow-hidden flex flex-col justify-between hover:border-[#e8702a]/30 transition-all duration-500 group">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-[#e8702a]/5 to-transparent rounded-bl-full pointer-events-none" />
+                    <div>
+                      <div className="flex items-center justify-between mb-6">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-[#e8702a] bg-[#e8702a]/10 px-3 py-1 rounded-full">
+                          Organic Loop
+                        </span>
+                        <span className="text-[10px] text-white/40 font-mono">ID: ML-084</span>
+                      </div>
+                      
+                      {/* Flow visual */}
+                      <div className="space-y-4 my-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-2.5 h-2.5 rounded-full bg-[#e8702a]" />
+                          <div>
+                            <div className="text-[10px] text-white/40 uppercase font-semibold">Source Material</div>
+                            <div className="text-sm font-bold text-white">Spent Coffee Grounds</div>
+                          </div>
+                        </div>
+                        <div className="h-6 w-0.5 bg-gradient-to-b from-[#e8702a] to-emerald-500 ml-1.25" />
+                        <div className="flex items-center gap-3">
+                          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                          <div>
+                            <div className="text-[10px] text-white/40 uppercase font-semibold">Matched Recipient</div>
+                            <div className="text-sm font-bold text-white flex items-center gap-1.5">
+                              <span>Green Mushroom Farm</span>
+                              <span className="text-[10px] font-normal text-white/40">(Hadapsar)</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-white/5 pt-6 mt-6 grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-[10px] text-white/40 uppercase font-semibold">Revenue Created</div>
+                        <div className="text-lg font-extrabold text-white font-mono mt-1">₹5,000<span className="text-xs font-light text-white/50">/ton</span></div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-white/40 uppercase font-semibold">Carbon Offset</div>
+                        <div className="text-lg font-extrabold text-emerald-400 font-mono mt-1">-650kg <span className="text-xs font-light text-white/50">CO2</span></div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-black/30 border border-white/5 rounded-3xl p-6 hover:border-white/10 transition-all duration-300">
-                    <Activity className="w-8 h-8 text-[#e8702a] mb-4" />
-                    <div className="text-2xl sm:text-4xl font-bold text-white font-mono">24.2 <span className="text-lg">Tons</span></div>
-                    <div className="text-xs text-white/50 uppercase mt-2 tracking-wider">Waste Landfill Diverted</div>
+
+                  {/* Micro-story 2 */}
+                  <div className="bg-neutral-900/60 border border-white/10 rounded-3xl p-8 relative overflow-hidden flex flex-col justify-between hover:border-[#e8702a]/30 transition-all duration-500 group">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-sky-400/5 to-transparent rounded-bl-full pointer-events-none" />
+                    <div>
+                      <div className="flex items-center justify-between mb-6">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-sky-400 bg-sky-400/10 px-3 py-1 rounded-full">
+                          Polymer Loop
+                        </span>
+                        <span className="text-[10px] text-white/40 font-mono">ID: ML-102</span>
+                      </div>
+                      
+                      {/* Flow visual */}
+                      <div className="space-y-4 my-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-2.5 h-2.5 rounded-full bg-sky-400" />
+                          <div>
+                            <div className="text-[10px] text-white/40 uppercase font-semibold">Source Material</div>
+                            <div className="text-sm font-bold text-white">PET Plastic Flakes</div>
+                          </div>
+                        </div>
+                        <div className="h-6 w-0.5 bg-gradient-to-b from-sky-400 to-emerald-500 ml-1.25" />
+                        <div className="flex items-center gap-3">
+                          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                          <div>
+                            <div className="text-[10px] text-white/40 uppercase font-semibold">Matched Recipient</div>
+                            <div className="text-sm font-bold text-white flex items-center gap-1.5">
+                              <span>PolyRecycle Industries</span>
+                              <span className="text-[10px] font-normal text-white/40">(Chakan)</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-white/5 pt-6 mt-6 grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-[10px] text-white/40 uppercase font-semibold">Revenue Created</div>
+                        <div className="text-lg font-extrabold text-white font-mono mt-1">₹12,000<span className="text-xs font-light text-white/50">/ton</span></div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-white/40 uppercase font-semibold">Carbon Offset</div>
+                        <div className="text-lg font-extrabold text-emerald-400 font-mono mt-1">-1,800kg <span className="text-xs font-light text-white/50">CO2</span></div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-black/30 border border-white/5 rounded-3xl p-6 hover:border-white/10 transition-all duration-300">
-                    <DollarSign className="w-8 h-8 text-amber-400 mb-4" />
-                    <div className="text-2xl sm:text-4xl font-bold text-white font-mono">₹2.45<span className="text-lg">L</span></div>
-                    <div className="text-xs text-white/50 uppercase mt-2 tracking-wider">Circulating Revenue Created</div>
+
+                  {/* Micro-story 3 */}
+                  <div className="bg-neutral-900/60 border border-white/10 rounded-3xl p-8 relative overflow-hidden flex flex-col justify-between hover:border-[#e8702a]/30 transition-all duration-500 group">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-amber-500/5 to-transparent rounded-bl-full pointer-events-none" />
+                    <div>
+                      <div className="flex items-center justify-between mb-6">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-amber-500 bg-amber-500/10 px-3 py-1 rounded-full">
+                          Timber Loop
+                        </span>
+                        <span className="text-[10px] text-white/40 font-mono">ID: ML-049</span>
+                      </div>
+                      
+                      {/* Flow visual */}
+                      <div className="space-y-4 my-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                          <div>
+                            <div className="text-[10px] text-white/40 uppercase font-semibold">Source Material</div>
+                            <div className="text-sm font-bold text-white">Sawmill Sawdust Scraps</div>
+                          </div>
+                        </div>
+                        <div className="h-6 w-0.5 bg-gradient-to-b from-amber-500 to-emerald-500 ml-1.25" />
+                        <div className="flex items-center gap-3">
+                          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                          <div>
+                            <div className="text-[10px] text-white/40 uppercase font-semibold">Matched Recipient</div>
+                            <div className="text-sm font-bold text-white flex items-center gap-1.5">
+                              <span>Deccan Particle Boards</span>
+                              <span className="text-[10px] font-normal text-white/40">(Chakan)</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-white/5 pt-6 mt-6 grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-[10px] text-white/40 uppercase font-semibold">Revenue Created</div>
+                        <div className="text-lg font-extrabold text-white font-mono mt-1">₹4,500<span className="text-xs font-light text-white/50">/ton</span></div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-white/40 uppercase font-semibold">Carbon Offset</div>
+                        <div className="text-lg font-extrabold text-emerald-400 font-mono mt-1">-850kg <span className="text-xs font-light text-white/50">CO2</span></div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-black/30 border border-white/5 rounded-3xl p-6 hover:border-white/10 transition-all duration-300">
-                    <Users className="w-8 h-8 text-sky-400 mb-4" />
-                    <div className="text-2xl sm:text-4xl font-bold text-white font-mono">12 <span className="text-lg">Units</span></div>
-                    <div className="text-xs text-white/50 uppercase mt-2 tracking-wider">Active Regional Pipelines</div>
+
+                </div>
+              </div>
+
+              {/* How It Works */}
+              <div className="border-t border-white/5 pt-24 mb-28">
+                <div className="text-center mb-16 font-sans">
+                  <span className="text-xs font-semibold tracking-widest text-[#e8702a] uppercase bg-[#e8702a]/10 px-3.5 py-1.5 rounded-full">
+                    Operational Protocol
+                  </span>
+                  <h3 className="text-3xl sm:text-5xl font-extrabold text-white mt-6 mb-4 tracking-tight uppercase">
+                    The Circular Routing Engine
+                  </h3>
+                  <p className="text-white/40 text-xs sm:text-sm mt-3 max-w-lg mx-auto font-light normal-case">
+                    How ReSource AI maps byproduct chemistry to regional industrial sinks in real-time.
+                  </p>
+                </div>
+
+                {/* Horizontal Connected Process Map */}
+                <div className="relative px-4 font-sans">
+                  {/* SVG Connector Line (Desktop) */}
+                  <div className="hidden lg:block absolute top-[21px] left-12 right-12 h-1 z-0 pointer-events-none">
+                    <svg className="w-full h-2 overflow-visible" fill="none">
+                      <line
+                        x1="0"
+                        y1="2"
+                        x2="100%"
+                        y2="2"
+                        stroke="rgba(232, 112, 42, 0.15)"
+                        strokeWidth="2"
+                      />
+                      <line
+                        x1="0"
+                        y1="2"
+                        x2="100%"
+                        y2="2"
+                        stroke="#e8702a"
+                        strokeWidth="2"
+                        className="animate-dash"
+                      />
+                    </svg>
+                  </div>
+
+                  {/* Vertical Connector Line (Mobile) */}
+                  <div className="lg:hidden absolute top-8 bottom-8 left-[29px] w-0.5 z-0 pointer-events-none">
+                    <svg className="w-2 h-full overflow-visible" fill="none">
+                      <line
+                        x1="2"
+                        y1="0"
+                        x2="2"
+                        y2="100%"
+                        stroke="rgba(232, 112, 42, 0.15)"
+                        strokeWidth="2"
+                      />
+                      <line
+                        x1="2"
+                        y1="0"
+                        x2="2"
+                        y2="100%"
+                        stroke="#e8702a"
+                        strokeWidth="2"
+                        className="animate-dash"
+                      />
+                    </svg>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-7 gap-8 lg:gap-4 relative z-10">
+                    {/* Step 1 */}
+                    <div className="flex lg:flex-col items-start gap-4 lg:gap-0 lg:text-center group">
+                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#e8702a] flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:bg-[#e8702a] group-hover:text-black transition-colors duration-300">
+                        <span className="text-xs font-bold font-mono text-white group-hover:text-black">01</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-[#e8702a] tracking-wider uppercase block mb-1">Waste</span>
+                        <h4 className="text-xs font-bold text-white mb-1.5 uppercase">Ingestion</h4>
+                        <p className="text-[10px] text-white/50 leading-relaxed max-w-[150px] lg:mx-auto font-light normal-case">
+                          Identify raw by-product stream volumes.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 2 */}
+                    <div className="flex lg:flex-col items-start gap-4 lg:gap-0 lg:text-center group">
+                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#e8702a]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#e8702a] group-hover:bg-[#e8702a] transition-all duration-300">
+                        <span className="text-xs font-bold font-mono text-white group-hover:text-black">02</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-[#e8702a] tracking-wider uppercase block mb-1">Understanding</span>
+                        <h4 className="text-xs font-bold text-white mb-1.5 uppercase">Material Science</h4>
+                        <p className="text-[10px] text-white/50 leading-relaxed max-w-[150px] lg:mx-auto font-light normal-case">
+                          Analyze physical and chemical properties.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 3 */}
+                    <div className="flex lg:flex-col items-start gap-4 lg:gap-0 lg:text-center group">
+                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#e8702a]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#e8702a] group-hover:bg-[#e8702a] transition-all duration-300">
+                        <span className="text-xs font-bold font-mono text-white group-hover:text-black">03</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-[#e8702a] tracking-wider uppercase block mb-1">Classification</span>
+                        <h4 className="text-xs font-bold text-white mb-1.5 uppercase">Semantic Match</h4>
+                        <p className="text-[10px] text-white/50 leading-relaxed max-w-[150px] lg:mx-auto font-light normal-case">
+                          Resolve synonyms and standardize taxonomies.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 4 */}
+                    <div className="flex lg:flex-col items-start gap-4 lg:gap-0 lg:text-center group">
+                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#e8702a]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#e8702a] group-hover:bg-[#e8702a] transition-all duration-300">
+                        <span className="text-xs font-bold font-mono text-white group-hover:text-black">04</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-[#e8702a] tracking-wider uppercase block mb-1">Matching</span>
+                        <h4 className="text-xs font-bold text-white mb-1.5 uppercase">Business Routing</h4>
+                        <p className="text-[10px] text-white/50 leading-relaxed max-w-[150px] lg:mx-auto font-light normal-case">
+                          Geolocate nearest logistics-compatible receivers.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 5 */}
+                    <div className="flex lg:flex-col items-start gap-4 lg:gap-0 lg:text-center group">
+                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#e8702a]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#e8702a] group-hover:bg-[#e8702a] transition-all duration-300">
+                        <span className="text-xs font-bold font-mono text-white group-hover:text-black">05</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-[#e8702a] tracking-wider uppercase block mb-1">Analysis</span>
+                        <h4 className="text-xs font-bold text-white mb-1.5 uppercase">Impact Audit</h4>
+                        <p className="text-[10px] text-white/50 leading-relaxed max-w-[150px] lg:mx-auto font-light normal-case">
+                          Calculate carbon offset factor and diverted weight.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 6 */}
+                    <div className="flex lg:flex-col items-start gap-4 lg:gap-0 lg:text-center group">
+                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#e8702a]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#e8702a] group-hover:bg-[#e8702a] transition-all duration-300">
+                        <span className="text-xs font-bold font-mono text-white group-hover:text-black">06</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-[#e8702a] tracking-wider uppercase block mb-1">Recommendations</span>
+                        <h4 className="text-xs font-bold text-white mb-1.5 uppercase">AI Modeling</h4>
+                        <p className="text-[10px] text-white/50 leading-relaxed max-w-[150px] lg:mx-auto font-light normal-case">
+                          Create outreach emails and logistic compliance.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 7 */}
+                    <div className="flex lg:flex-col items-start gap-4 lg:gap-0 lg:text-center group">
+                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#e8702a]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#e8702a] group-hover:bg-[#e8702a] transition-all duration-300">
+                        <span className="text-xs font-bold font-mono text-white group-hover:text-black">07</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-[#e8702a] tracking-wider uppercase block mb-1">Circular Economy</span>
+                        <h4 className="text-xs font-bold text-white mb-1.5 uppercase">Value Realization</h4>
+                        <p className="text-[10px] text-white/50 leading-relaxed max-w-[150px] lg:mx-auto font-light normal-case">
+                          Close the loop and capture realized economic gains.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Horizontal Process Map */}
-              <div className="border-t border-white/5 pt-20 mb-24">
-                <div className="text-center mb-16">
-                  <h3 className="text-2xl sm:text-4xl font-bold text-white tracking-tight">
-                    The Circular Routing Mechanism
-                  </h3>
-                  <p className="text-white/40 text-xs sm:text-sm mt-3">
-                    How ReSource AI maps byproduct chemistry to regional industrial sinks.
-                  </p>
-                </div>
+              {/* AI Showcase Sandbox */}
+              <div className="border-t border-white/5 pt-24 mb-28">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center font-sans">
+                  
+                  {/* Left Column: Context & Presets */}
+                  <div className="lg:col-span-5 space-y-6 text-left">
+                    <span className="text-xs font-semibold tracking-widest text-[#e8702a] uppercase bg-[#e8702a]/10 px-3.5 py-1.5 rounded-full font-mono animate-pulse">
+                      AI Ingestion Simulator
+                    </span>
+                    <h3 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight uppercase font-sans">
+                      Watch the <span className="font-playfair italic font-light lowercase text-[#e8702a] tracking-tight normal-case">AI</span> think.
+                    </h3>
+                    <p className="text-white/60 text-sm font-light leading-relaxed normal-case">
+                      Select a raw waste stream query preset below to watch ReSource AI resolve raw synonym text into standardized chemistry, logistics matching, and impact math.
+                    </p>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative">
-                  {/* Step 1 */}
-                  <div className="bg-neutral-900/40 p-6 rounded-2xl border border-white/5 relative hover:border-[#e8702a]/20 transition-all duration-300">
-                    <div className="absolute top-4 right-4 text-3xl font-bold text-white/5 font-mono">01</div>
-                    <span className="text-xs font-semibold text-[#e8702a] tracking-wider uppercase">Ingestion</span>
-                    <h4 className="text-lg font-medium text-white mt-2 mb-3">Input Material Description</h4>
-                    <p className="text-xs text-white/60 leading-relaxed font-light">
-                      Describe the waste composition, quantity, location and current disposal method via the Intake form.
-                    </p>
+                    {/* Presets Row/Col */}
+                    <div className="space-y-3 pt-4">
+                      {DEMO_PRESETS.map((preset, idx) => (
+                        <button
+                          key={preset.input}
+                          onClick={() => runDemoPipeline(idx)}
+                          className={`w-full text-left px-5 py-4 rounded-2xl border transition-all duration-300 flex items-center justify-between group cursor-pointer ${
+                            demoActiveIndex === idx
+                              ? 'bg-neutral-900 border-[#e8702a] shadow-lg shadow-[#e8702a]/5'
+                              : 'bg-black/40 border-white/5 hover:border-white/20 hover:bg-neutral-900/30'
+                          }`}
+                        >
+                          <div className="max-w-[85%] font-sans normal-case">
+                            <div className="text-[10px] uppercase font-bold text-[#e8702a] mb-1">{preset.category}</div>
+                            <div className="text-xs text-white/80 font-medium truncate">{preset.input}</div>
+                          </div>
+                          <div className="w-8 h-8 rounded-full bg-[#1c1c1c] border border-white/10 flex items-center justify-center shrink-0 group-hover:border-[#e8702a] group-hover:bg-[#e8702a]/10 transition-colors">
+                            <ArrowRight className="w-3.5 h-3.5 text-white/60 group-hover:text-[#e8702a]" />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  {/* Step 2 */}
-                  <div className="bg-neutral-900/40 p-6 rounded-2xl border border-white/5 relative hover:border-[#e8702a]/20 transition-all duration-300">
-                    <div className="absolute top-4 right-4 text-3xl font-bold text-white/5 font-mono">02</div>
-                    <span className="text-xs font-semibold text-[#e8702a] tracking-wider uppercase">Standardization</span>
-                    <h4 className="text-lg font-medium text-white mt-2 mb-3">Taxonomic Mapping</h4>
-                    <p className="text-xs text-white/60 leading-relaxed font-light">
-                      Algorithms parse synonyms and descriptions to match raw text to standardized chemical materials.
-                    </p>
+
+                  {/* Right Column: Animated Terminal Mockup */}
+                  <div className="lg:col-span-7 bg-[#0c0c0c] border border-white/10 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-2xl relative min-h-[460px] flex flex-col justify-between overflow-hidden">
+                    {/* Glowing status bar */}
+                    <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-transparent via-[#e8702a] to-transparent opacity-45" />
+
+                    {/* Terminal Header */}
+                    <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-6 font-sans">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
+                        <span className="text-[10px] text-white/30 font-mono ml-2 uppercase tracking-widest">material_auditor_v1.0</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${demoRunning ? 'bg-[#e8702a] animate-ping' : 'bg-emerald-500'}`} />
+                        <span className="text-[9px] font-mono uppercase text-white/40 font-bold">
+                          {demoRunning ? "auditing..." : "standby"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Terminal Content */}
+                    <div className="space-y-3.5 flex-grow font-mono text-xs text-left">
+                      {/* Query prompt */}
+                      <div className="bg-[#141414] border border-white/5 rounded-xl p-4 mb-6">
+                        <span className="text-[#e8702a] font-bold">&gt; Ingest Query: </span>
+                        <span className="text-white/80">"{DEMO_PRESETS[demoActiveIndex].input}"</span>
+                      </div>
+
+                      {/* Step 1: Standardization */}
+                      {demoStep >= 1 ? (
+                        <div className="border border-[#e8702a]/10 bg-neutral-900/30 rounded-xl p-3.5 flex items-center justify-between animate-fade-in border-l-2 border-l-[#e8702a]">
+                          <div className="space-y-1">
+                            <span className="text-[9px] text-[#e8702a] font-bold uppercase tracking-wider">01 // Semantic Taxonomy Classification</span>
+                            <div className="text-white text-xs font-semibold">
+                              Detected: <span className="text-[#e8702a]">{DEMO_PRESETS[demoActiveIndex].detected}</span>
+                            </div>
+                          </div>
+                          <CheckCircle className="w-4.5 h-4.5 text-emerald-400 shrink-0 ml-4" />
+                        </div>
+                      ) : demoRunning && demoStep === 0 ? (
+                        <div className="h-10 flex items-center gap-2 text-white/30 italic pl-4 animate-pulse">
+                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-[#e8702a] rounded-full animate-spin" />
+                          <span>Standardizing chemical composition...</span>
+                        </div>
+                      ) : null}
+
+                      {/* Step 2: Uses */}
+                      {demoStep >= 2 ? (
+                        <div className="border border-[#e8702a]/10 bg-neutral-900/30 rounded-xl p-3.5 flex items-center justify-between animate-fade-in border-l-2 border-l-emerald-500">
+                          <div className="space-y-1">
+                            <span className="text-[9px] text-emerald-500 font-bold uppercase tracking-wider">02 // Physical Trait Compatibility</span>
+                            <div className="text-white text-xs font-semibold flex flex-wrap gap-1.5 mt-1">
+                              {DEMO_PRESETS[demoActiveIndex].uses.map((use, uIdx) => (
+                                <span key={uIdx} className="bg-emerald-500/10 text-emerald-400 text-[10px] px-2 py-0.5 rounded border border-emerald-500/10">
+                                  {use}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <CheckCircle className="w-4.5 h-4.5 text-emerald-400 shrink-0 ml-4" />
+                        </div>
+                      ) : demoRunning && demoStep === 1 ? (
+                        <div className="h-10 flex items-center gap-2 text-white/30 italic pl-4 animate-pulse">
+                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-[#e8702a] rounded-full animate-spin" />
+                          <span>Scanning physical compatibilities...</span>
+                        </div>
+                      ) : null}
+
+                      {/* Step 3: Match */}
+                      {demoStep >= 3 ? (
+                        <div className="border border-[#e8702a]/10 bg-neutral-900/30 rounded-xl p-3.5 flex items-center justify-between animate-fade-in border-l-2 border-l-[#e8702a]">
+                          <div className="space-y-1">
+                            <span className="text-[9px] text-[#e8702a] font-bold uppercase tracking-wider">03 // Geodetic Logistics Routing</span>
+                            <div className="text-white text-xs font-semibold">
+                              Nearest Sink: <span className="text-white font-bold">{DEMO_PRESETS[demoActiveIndex].match}</span>
+                              <span className="text-white/40 text-[10px] font-normal ml-2">({DEMO_PRESETS[demoActiveIndex].distance})</span>
+                            </div>
+                          </div>
+                          <CheckCircle className="w-4.5 h-4.5 text-emerald-400 shrink-0 ml-4" />
+                        </div>
+                      ) : demoRunning && demoStep === 2 ? (
+                        <div className="h-10 flex items-center gap-2 text-white/30 italic pl-4 animate-pulse">
+                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-[#e8702a] rounded-full animate-spin" />
+                          <span>Calculating geodetic distance matrices...</span>
+                        </div>
+                      ) : null}
+
+                      {/* Step 4: Carbon */}
+                      {demoStep >= 4 ? (
+                        <div className="border border-[#e8702a]/10 bg-neutral-900/30 rounded-xl p-3.5 flex items-center justify-between animate-fade-in border-l-2 border-l-emerald-500">
+                          <div className="space-y-1">
+                            <span className="text-[9px] text-emerald-500 font-bold uppercase tracking-wider">04 // Carbon Offset Math</span>
+                            <div className="text-emerald-400 text-xs font-bold font-mono">
+                              Diverted emissions: {DEMO_PRESETS[demoActiveIndex].carbon}
+                            </div>
+                          </div>
+                          <CheckCircle className="w-4.5 h-4.5 text-emerald-400 shrink-0 ml-4" />
+                        </div>
+                      ) : demoRunning && demoStep === 3 ? (
+                        <div className="h-10 flex items-center gap-2 text-white/30 italic pl-4 animate-pulse">
+                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-[#e8702a] rounded-full animate-spin" />
+                          <span>Evaluating transportation offset multipliers...</span>
+                        </div>
+                      ) : null}
+
+                      {/* Step 5: Revenue */}
+                      {demoStep >= 5 ? (
+                        <div className="border border-[#e8702a]/25 bg-[#e8702a]/5 rounded-xl p-3.5 flex items-center justify-between animate-fade-in border-l-4 border-l-[#e8702a]">
+                          <div className="space-y-1">
+                            <span className="text-[9px] text-[#e8702a] font-bold uppercase tracking-wider">05 // Financial Yield Estimate</span>
+                            <div className="text-white text-xs font-bold font-mono">
+                              Projected B2B Value: <span className="text-amber-400">{DEMO_PRESETS[demoActiveIndex].revenue}</span>
+                            </div>
+                          </div>
+                          <CheckCircle className="w-4.5 h-4.5 text-[#e8702a] shrink-0 ml-4" />
+                        </div>
+                      ) : demoRunning && demoStep === 4 ? (
+                        <div className="h-10 flex items-center gap-2 text-white/30 italic pl-4 animate-pulse">
+                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-[#e8702a] rounded-full animate-spin" />
+                          <span>Assessing market rate index matrix...</span>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* Trigger Button */}
+                    <div className="mt-8 border-t border-white/5 pt-4 flex items-center justify-between font-sans">
+                      <span className="text-[10px] text-white/35 font-light">
+                        Click presets on the left to trace material loops.
+                      </span>
+                      <button
+                        onClick={() => runDemoPipeline(demoActiveIndex)}
+                        disabled={demoRunning}
+                        className="bg-white text-black text-xs font-bold px-6 py-2.5 rounded-full shadow-lg active:scale-95 transition-all hover:bg-neutral-100 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                      >
+                        <span>Analyze Stream</span>
+                        <Sparkles className="w-3.5 h-3.5 text-[#e8702a]" />
+                      </button>
+                    </div>
                   </div>
-                  {/* Step 3 */}
-                  <div className="bg-neutral-900/40 p-6 rounded-2xl border border-white/5 relative hover:border-[#e8702a]/20 transition-all duration-300">
-                    <div className="absolute top-4 right-4 text-3xl font-bold text-white/5 font-mono">03</div>
-                    <span className="text-xs font-semibold text-[#e8702a] tracking-wider uppercase">Distance Calculation</span>
-                    <h4 className="text-lg font-medium text-white mt-2 mb-3">Haversine Logistics Routing</h4>
-                    <p className="text-xs text-white/60 leading-relaxed font-light">
-                      Matches acceptances inside regional directories using distance matrices to minimize transport carbon.
-                    </p>
-                  </div>
-                  {/* Step 4 */}
-                  <div className="bg-neutral-900/40 p-6 rounded-2xl border border-white/5 relative hover:border-[#e8702a]/20 transition-all duration-300">
-                    <div className="absolute top-4 right-4 text-3xl font-bold text-white/5 font-mono">04</div>
-                    <span className="text-xs font-semibold text-[#e8702a] tracking-wider uppercase">Decision Math</span>
-                    <h4 className="text-lg font-medium text-white mt-2 mb-3">Gemini Chemistry Audit</h4>
-                    <p className="text-xs text-white/60 leading-relaxed font-light">
-                      Gemini estimates carbon savings and synthesizes customized partnership B2B outreach proposals.
-                    </p>
-                  </div>
+
                 </div>
               </div>
 
               {/* Bottom CTA Panel */}
-              <div className="bg-gradient-to-r from-[#e8702a]/10 via-[#e8702a]/5 to-transparent border border-white/10 rounded-3xl p-8 sm:p-12 flex flex-col md:flex-row items-center justify-between gap-8 mt-16">
+              <div className="bg-gradient-to-r from-[#e8702a]/10 via-[#e8702a]/5 to-transparent border border-white/10 rounded-3xl p-8 sm:p-12 flex flex-col md:flex-row items-center justify-between gap-8 mt-16 text-left font-sans">
                 <div>
-                  <h3 className="text-2xl sm:text-4xl font-playfair font-normal italic text-white">
+                  <h3 className="text-2xl sm:text-4xl font-extrabold text-white">
                     Ready to map circular value?
                   </h3>
                   <p className="text-white/60 mt-3 max-w-xl text-sm font-light">
@@ -1567,16 +2201,16 @@ export default function App() {
 
       {/* -------------------- LIVE MAP VIEW -------------------- */}
       {activeTab === 'Live Map' && (
-        <section className="pt-28 pb-20 px-4 sm:px-6 max-w-7xl mx-auto space-y-8 animate-fade-in">
+        <section className="pt-28 pb-20 px-4 sm:px-6 max-w-7xl mx-auto space-y-8 animate-fade-in font-sans">
           <div>
             <span className="text-xs font-semibold tracking-widest text-[#e8702a] uppercase bg-[#e8702a]/10 px-3.5 py-1.5 rounded-full">
-              Live Logistics visualizer
+              Live Logistics Visualizer
             </span>
-            <h2 className="text-3xl sm:text-5xl font-playfair font-normal italic text-white mt-4">
+            <h2 className="text-3xl sm:text-5xl font-extrabold text-white mt-4 tracking-tight uppercase">
               Regional Connections
             </h2>
-            <p className="text-white/60 text-xs sm:text-sm mt-2 max-w-xl font-light">
-              Interactive map illustrating logistics links between Pune hubs. Hover nodes to examine regional partner loads.
+            <p className="text-white/60 text-xs sm:text-sm mt-2 max-w-xl font-light leading-relaxed">
+              Interactive map illustrating logistics links between Pune industrial hubs. Hover nodes or routing lines to examine real-time circular loads and transport math.
             </p>
           </div>
 
@@ -1595,19 +2229,47 @@ export default function App() {
                 className="relative z-10 w-full max-w-[550px]"
               >
                 {/* Connection links */}
-                <g stroke="rgba(232, 112, 42, 0.08)" strokeWidth="1.5" fill="none">
-                  {/* Hadapsar connections */}
-                  <line x1="420" y1="400" x2="280" y2="380" strokeDasharray="5 5" />
-                  <line x1="420" y1="400" x2="300" y2="120" strokeDasharray="5 5" />
-                  
-                  {/* Chakan connections */}
-                  <line x1="300" y1="120" x2="280" y2="380" strokeDasharray="5 5" />
-                  <line x1="300" y1="120" x2="120" y2="150" strokeDasharray="5 5" />
-                  <line x1="300" y1="120" x2="240" y2="260" strokeDasharray="5 5" stroke="rgba(232, 112, 42, 0.3)" />
-
-                  {/* Hinjawadi to Talegaon */}
-                  <line x1="180" y1="300" x2="120" y2="150" strokeDasharray="5 5" />
-                  <line x1="180" y1="300" x2="240" y2="260" strokeDasharray="5 5" stroke="rgba(232, 112, 42, 0.3)" />
+                <g fill="none">
+                  {MAP_CONNECTIONS.map((conn) => {
+                    const isHovered = hoveredConnection?.id === conn.id;
+                    return (
+                      <g key={conn.id}>
+                        {/* Static connection base */}
+                        <line
+                          x1={conn.x1}
+                          y1={conn.y1}
+                          x2={conn.x2}
+                          y2={conn.y2}
+                          stroke={isHovered ? "rgba(232, 112, 42, 0.4)" : "rgba(232, 112, 42, 0.15)"}
+                          strokeWidth={isHovered ? "2.5" : "1.5"}
+                          className="transition-all duration-300"
+                        />
+                        {/* Animated flowing glowing dash */}
+                        <line
+                          x1={conn.x1}
+                          y1={conn.y1}
+                          x2={conn.x2}
+                          y2={conn.y2}
+                          stroke={isHovered ? "#ffffff" : "#e8702a"}
+                          strokeWidth="2"
+                          strokeDasharray="5 5"
+                          className="animate-dash"
+                        />
+                        {/* Invisible thicker target for easier mouse hover */}
+                        <line
+                          x1={conn.x1}
+                          y1={conn.y1}
+                          x2={conn.x2}
+                          y2={conn.y2}
+                          stroke="transparent"
+                          strokeWidth="12"
+                          className="cursor-pointer"
+                          onMouseEnter={() => setHoveredConnection(conn)}
+                          onMouseLeave={() => setHoveredConnection(null)}
+                        />
+                      </g>
+                    );
+                  })}
                 </g>
 
                 {/* Nodes rendering */}
@@ -1624,7 +2286,7 @@ export default function App() {
                       <circle
                         cx={node.cx}
                         cy={node.cy}
-                        r={isHovered ? 15 : 9}
+                        r={isHovered ? 16 : 9}
                         fill="none"
                         stroke={node.id === 'pune' ? '#ffffff' : '#e8702a'}
                         strokeWidth="1"
@@ -1644,7 +2306,7 @@ export default function App() {
                       {/* Label Text */}
                       <text
                         x={node.cx}
-                        y={node.cy - 12}
+                        y={node.cy - 14}
                         textAnchor="middle"
                         fill="rgba(255, 255, 255, 0.75)"
                         fontSize="9"
@@ -1660,15 +2322,44 @@ export default function App() {
             </div>
 
             {/* Info panel Right */}
-            <div className="lg:col-span-4 space-y-6 h-full">
-              <div className="bg-neutral-900 border border-white/10 rounded-3xl p-6 min-h-[360px] flex flex-col justify-between">
-                {hoveredNode ? (
+            <div className="lg:col-span-4 space-y-6 h-full font-sans">
+              <div className="bg-neutral-900 border border-white/10 rounded-3xl p-6 min-h-[380px] flex flex-col justify-between">
+                {hoveredConnection ? (
+                  <div className="space-y-4 animate-fade-in text-left">
+                    <span className="text-[10px] font-semibold text-[#e8702a] uppercase bg-[#e8702a]/15 px-2.5 py-1 rounded">
+                      Active Route Specifications
+                    </span>
+                    
+                    <h3 className="text-lg font-bold text-white mt-2">
+                      {hoveredConnection.fromName} <span className="text-[#e8702a] text-xs block sm:inline">→</span> {hoveredConnection.toName}
+                    </h3>
+                    
+                    <div className="border-t border-white/5 pt-4 space-y-3.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-white/40">Standardized Material:</span>
+                        <span className="font-semibold text-white/90">{hoveredConnection.material}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-white/40">Haversine Distance:</span>
+                        <span className="font-mono text-white/80">{hoveredConnection.distance}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-white/40">Projected B2B Value:</span>
+                        <span className="font-bold text-amber-400 font-mono">{hoveredConnection.revenue}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-white/40">Carbon Offset Math:</span>
+                        <span className="font-bold text-emerald-400 font-mono">-{hoveredConnection.carbon}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : hoveredNode ? (
                   (() => {
                     const node = MAP_NODES.find(n => n.id === hoveredNode);
                     if (!node) return null;
                     return (
-                      <div className="space-y-4 animate-fade-in">
-                        <span className="text-[10px] font-semibold text-[#e8702a] uppercase bg-[#e8702a]/15 px-2.5 py-1 rounded">
+                      <div className="space-y-4 animate-fade-in text-left">
+                        <span className="text-[10px] font-semibold text-sky-400 bg-sky-400/15 px-2.5 py-1 rounded">
                           Regional Hub Specifications
                         </span>
                         
@@ -1694,12 +2385,12 @@ export default function App() {
                   })()
                 ) : (
                   <div className="text-center py-20 text-xs text-white/35 flex flex-col items-center justify-center gap-3">
-                    <Compass className="w-8 h-8 text-white/20" />
-                    <span>Hover over map nodes to georeference circular locations.</span>
+                    <Compass className="w-8 h-8 text-white/20 animate-spin" style={{ animationDuration: '6s' }} />
+                    <span>Hover over map nodes or routing lines to georeference circular locations.</span>
                   </div>
                 )}
 
-                <div className="border-t border-white/5 pt-4 text-[10px] text-white/40 leading-relaxed">
+                <div className="border-t border-white/5 pt-4 text-[10px] text-white/40 leading-relaxed text-left">
                   Logistics routes map distances directly using the Haversine formula on geodetic coordinates to minimize carbon transport impact grids.
                 </div>
               </div>

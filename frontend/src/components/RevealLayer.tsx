@@ -6,9 +6,10 @@ interface RevealLayerProps {
   image: string;
   cursorX: number;
   cursorY: number;
+  className?: string;
 }
 
-export function RevealLayer({ image, cursorX, cursorY }: RevealLayerProps) {
+export function RevealLayer({ image, cursorX, cursorY, className = "" }: RevealLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [maskUrl, setMaskUrl] = useState<string>('');
 
@@ -80,7 +81,7 @@ export function RevealLayer({ image, cursorX, cursorY }: RevealLayerProps) {
         style={{ display: 'none' }}
       />
       <div
-        className="absolute inset-0 bg-center bg-cover bg-no-repeat z-30 pointer-events-none"
+        className={`absolute inset-0 bg-center bg-cover bg-no-repeat z-30 pointer-events-none ${className}`}
         style={{
           backgroundImage: `url(${image})`,
           maskImage: maskUrl ? `url(${maskUrl})` : 'none',
