@@ -273,9 +273,14 @@ export default function App() {
     window.addEventListener('touchstart', handleTouchMove);
 
     const updateSmoothPosition = () => {
-      smooth.current.x += (mouse.current.x - smooth.current.x) * 0.1;
-      smooth.current.y += (mouse.current.y - smooth.current.y) * 0.1;
-      setCursorPos({ x: smooth.current.x, y: smooth.current.y });
+      const dx = mouse.current.x - smooth.current.x;
+      const dy = mouse.current.y - smooth.current.y;
+      
+      if (Math.abs(dx) > 0.15 || Math.abs(dy) > 0.15) {
+        smooth.current.x += dx * 0.1;
+        smooth.current.y += dy * 0.1;
+        setCursorPos({ x: Math.round(smooth.current.x * 10) / 10, y: Math.round(smooth.current.y * 10) / 10 });
+      }
       rafRef.current = requestAnimationFrame(updateSmoothPosition);
     };
 
