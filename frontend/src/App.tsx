@@ -27,13 +27,36 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { RevealLayer } from './components/RevealLayer';
-import branchingLandscapeBase from './assets/branching_landscape_base.png';
-import branchingLandscapeGlow from './assets/branching_landscape_glow.png';
+import beforeImage from './assets/before.jpeg';
+import afterImage from './assets/after.jpeg';
 
-const BG_IMAGE_1 = branchingLandscapeBase;
-const BG_IMAGE_2 = branchingLandscapeGlow;
+const BG_IMAGE_1 = beforeImage;
+const BG_IMAGE_2 = afterImage;
 
 const NAV_ITEMS = ['Home', 'Analyze', 'Dashboard', 'Taxonomy', 'Partners', 'Live Map'];
+
+// Global background floating particles definition
+const FLOATING_PARTICLES = Array.from({ length: 28 }).map((_, i) => {
+  const size = Math.random() * 12 + 6; // size: 6px to 18px
+  const left = Math.random() * 100; // 0% to 100%
+  const duration = Math.random() * 12 + 16; // 16s to 28s
+  const delay = Math.random() * -30; // negative delay to populate screen instantly
+  const swayDuration = Math.random() * 4 + 4; // 4s to 8s
+  const swayAmount = Math.random() * 30 + 15; // 15px to 45px
+  const opacity = Math.random() * 0.18 + 0.06; // 0.06 to 0.24
+  const shapeType = Math.random() > 0.6 ? 'circle' : Math.random() > 0.3 ? 'ring' : 'ember';
+  return {
+    id: i,
+    size,
+    left: `${left}%`,
+    duration: `${duration}s`,
+    delay: `${delay}s`,
+    swayDuration: `${swayDuration}s`,
+    swayAmount: `${swayAmount}px`,
+    opacity,
+    shapeType,
+  };
+});
 
 const API_BASE = "http://localhost:8000/api/waste";
 
@@ -113,7 +136,6 @@ interface DashboardData {
 }
 
 export default function App() {
-  const [cursorPos, setCursorPos] = useState({ x: -999, y: -999 });
   const [activeTab, setActiveTab] = useState('Home');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -170,6 +192,8 @@ export default function App() {
   const mouse = useRef({ x: -999, y: -999 });
   const smooth = useRef({ x: -999, y: -999 });
   const rafRef = useRef<number | null>(null);
+  const revealLayerRef = useRef<HTMLDivElement>(null);
+  const heroImageContainerRef = useRef<HTMLDivElement | null>(null);
   const particlesCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Particles generator for background embers and dust
@@ -211,7 +235,7 @@ export default function App() {
         speedX: Math.random() * 0.3 - 0.15,
         speedY: -(Math.random() * 0.6 + 0.2),
         opacity: Math.random() * 0.4 + 0.15,
-        color: Math.random() > 0.5 ? 'rgba(232, 112, 42, 0.5)' : 'rgba(255, 255, 255, 0.25)'
+        color: Math.random() > 0.5 ? 'rgba(34, 197, 94, 0.5)' : 'rgba(255, 255, 255, 0.25)'
       });
     }
 
@@ -253,18 +277,35 @@ export default function App() {
     if (activeTab !== 'Home') {
       return;
     }
-    const initialX = window.innerWidth / 2;
-    const initialY = window.innerHeight * 0.45;
+    const rect = heroImageContainerRef.current?.getBoundingClientRect();
+    const initialX = rect ? rect.width / 2 : 210;
+    const initialY = rect ? rect.height / 2 : 260;
     mouse.current = { x: initialX, y: initialY };
     smooth.current = { x: initialX, y: initialY };
 
     const handleMouseMove = (e: MouseEvent) => {
-      mouse.current = { x: e.clientX, y: e.clientY };
+      const rect = heroImageContainerRef.current?.getBoundingClientRect();
+      if (rect) {
+        mouse.current = {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        };
+      } else {
+        mouse.current = { x: e.clientX, y: e.clientY };
+      }
     };
 
     const handleTouchMove = (e: TouchEvent) => {
       if (e.touches && e.touches[0]) {
-        mouse.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        const rect = heroImageContainerRef.current?.getBoundingClientRect();
+        if (rect) {
+          mouse.current = {
+            x: e.touches[0].clientX - rect.left,
+            y: e.touches[0].clientY - rect.top
+          };
+        } else {
+          mouse.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
       }
     };
 
@@ -272,15 +313,21 @@ export default function App() {
     window.addEventListener('touchmove', handleTouchMove);
     window.addEventListener('touchstart', handleTouchMove);
 
+    const updateRevealMask = () => {
+      revealLayerRef.current?.style.setProperty('--cursor-x', `${smooth.current.x}px`);
+      revealLayerRef.current?.style.setProperty('--cursor-y', `${smooth.current.y}px`);
+    };
+
+    updateRevealMask();
+
     const updateSmoothPosition = () => {
       const dx = mouse.current.x - smooth.current.x;
       const dy = mouse.current.y - smooth.current.y;
-      
-      if (Math.abs(dx) > 0.15 || Math.abs(dy) > 0.15) {
-        smooth.current.x += dx * 0.1;
-        smooth.current.y += dy * 0.1;
-        setCursorPos({ x: Math.round(smooth.current.x * 10) / 10, y: Math.round(smooth.current.y * 10) / 10 });
-      }
+
+      smooth.current.x += dx * 0.08;
+      smooth.current.y += dy * 0.08;
+      updateRevealMask();
+
       rafRef.current = requestAnimationFrame(updateSmoothPosition);
     };
 
@@ -376,6 +423,7 @@ export default function App() {
         if (res.ok) {
           const resultData = await res.json();
           setAnalysisResult(resultData);
+          setIsAnalyzing(false);
           triggerToast("Analysis completed successfully!");
         } else {
           const err = await res.json();
@@ -625,13 +673,48 @@ export default function App() {
 
   return (
     <div
-      className="min-h-screen bg-black text-white selection:bg-[#e8702a]/30 tracking-[-0.02em]"
+      className="min-h-screen bg-black text-white selection:bg-[#22c55e]/30 tracking-[-0.02em] relative"
       style={{ fontFamily: "'Inter', sans-serif" }}
     >
+      {/* Global Background Floating Elements */}
+      <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden">
+        {FLOATING_PARTICLES.map((p) => (
+          <div
+            key={p.id}
+            className="floating-element-outer"
+            style={{
+              left: p.left,
+              '--float-duration': p.duration,
+              '--float-delay': p.delay,
+              '--float-opacity': p.opacity,
+            } as React.CSSProperties}
+          >
+            <div
+              className="floating-element-inner"
+              style={{
+                width: `${p.size}px`,
+                height: `${p.size}px`,
+                '--float-sway': p.swayAmount,
+                '--float-sway-duration': p.swayDuration,
+              } as React.CSSProperties}
+            >
+              {p.shapeType === 'circle' && (
+                <div className="w-full h-full rounded-full bg-[#22c55e]/15 border border-[#22c55e]/10 blur-[0.5px]" />
+              )}
+              {p.shapeType === 'ring' && (
+                <div className="w-full h-full rounded-full border border-[#22c55e]/20" />
+              )}
+              {p.shapeType === 'ember' && (
+                <div className="w-full h-full rounded-full bg-white/10 blur-[1px]" />
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-20 right-5 z-[110] bg-neutral-900/95 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-2xl border border-white/10 backdrop-blur-md flex items-center gap-3 animate-fade-in">
-          <Sparkles className="w-4 h-4 text-[#e8702a]" />
+          <Sparkles className="w-4 h-4 text-[#22c55e]" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -643,12 +726,38 @@ export default function App() {
           <svg
             width="26"
             height="26"
-            viewBox="0 0 256 256"
-            fill="#ffffff"
+            viewBox="0 0 32 32"
+            fill="none"
             xmlns="http://www.w3.org/2000/svg"
             className="shrink-0 drop-shadow-md"
           >
-            <path d="M 256 256 L 128 256 L 0 128 L 128 128 Z M 256 128 L 128 128 L 0 0 L 128 0 Z" />
+            <path
+              d="M16 3C23.18 3 29 8.82 29 16C29 20.97 26.39 25.33 22.5 27.75"
+              stroke="#22c55e"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            />
+            <path
+              d="M22.5 27.75L27 29.5L22.5 31.5"
+              stroke="#22c55e"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M16 9.5C13.2 12.5 12.5 16.5 16 21.5C19.5 16.5 18.8 12.5 16 9.5Z"
+              fill="#22c55e"
+            />
+            <line
+              x1="16"
+              y1="9.5"
+              x2="16"
+              y2="21.5"
+              stroke="white"
+              strokeWidth="0.75"
+              strokeLinecap="round"
+              opacity="0.5"
+            />
           </svg>
           <span className="text-white text-2xl font-playfair italic font-medium tracking-tight">
             ReSource AI
@@ -668,7 +777,7 @@ export default function App() {
                 }}
                 className={`px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide uppercase transition-all duration-200 cursor-pointer ${
                   isActive
-                    ? 'bg-[#e8702a] text-white shadow-md shadow-[#e8702a]/20'
+                    ? 'bg-[#22c55e] text-white shadow-md shadow-[#22c55e]/20'
                     : 'text-white/60 hover:text-white hover:bg-white/5'
                 }`}
               >
@@ -713,7 +822,7 @@ export default function App() {
                   triggerToast(`Selected ${item} view`);
                 }}
                 className={`text-left text-2xl font-medium transition-colors py-1 border-b border-white/10 ${
-                  activeTab === item ? 'text-[#e8702a]' : 'text-white/80 hover:text-white'
+                  activeTab === item ? 'text-[#22c55e]' : 'text-white/80 hover:text-white'
                 }`}
               >
                 {item}
@@ -728,7 +837,7 @@ export default function App() {
               setAnalysisResult(null);
               triggerToast("Opening Intake Form...");
             }}
-            className="w-full mt-6 bg-[#e8702a] text-white text-base font-semibold py-3.5 rounded-full hover:bg-[#d2611f] transition-colors"
+            className="w-full mt-6 bg-[#22c55e] text-white text-base font-semibold py-3.5 rounded-full hover:bg-[#16a34a] transition-colors"
           >
             Intake Form
           </button>
@@ -739,74 +848,101 @@ export default function App() {
       {activeTab === 'Home' && (
         <div className="relative">
           {/* Spotlight Hero Section */}
-          <section className="relative w-full overflow-hidden h-screen bg-black flex flex-col justify-between p-6 sm:p-12 md:p-20 md:px-24 pt-28 pb-10 sm:pb-14" style={{ height: '100dvh' }}>
-            {/* Layer 1: Base Image (z-10) with slow float and zoom */}
-            <div
-              className="absolute inset-0 bg-center bg-cover bg-no-repeat z-10 animate-slow-float"
-              style={{ backgroundImage: `url(${BG_IMAGE_1})` }}
-            />
-
-            {/* Layer 2: Reveal Image (z-30) inside spotlight mask, animated in sync */}
-            <RevealLayer image={BG_IMAGE_2} cursorX={cursorPos.x} cursorY={cursorPos.y} className="animate-slow-float" />
-
-            {/* Layer 2.5: Floating Particle Canvas Overlay */}
+          <section className="relative w-full overflow-hidden min-h-screen lg:h-screen bg-transparent flex flex-col justify-center p-6 sm:p-12 md:p-20 md:px-24 pt-28 pb-10 sm:pb-14 lg:py-24" style={{ minHeight: '100dvh' }}>
+            {/* Floating Particle Canvas Overlay */}
             <canvas
               ref={particlesCanvasRef}
-              className="absolute inset-0 pointer-events-none z-45 opacity-60"
+              className="absolute inset-0 pointer-events-none z-10 opacity-60"
             />
 
-            {/* Layer 3: Overlapping Typography */}
-            <div className="relative z-50 max-w-4xl pointer-events-none text-left select-none font-sans mt-2">
-              <span className="inline-block text-xs font-semibold tracking-widest text-[#e8702a] uppercase bg-[#e8702a]/10 px-3.5 py-1.5 rounded-full mb-5">
-                ReSource AI // Material Intelligence
-              </span>
-              <h1 className="text-white font-extrabold text-4xl sm:text-6xl md:text-7xl lg:text-8xl leading-[0.9] tracking-[-0.04em] uppercase">
-                Every <span className="font-playfair italic font-light lowercase tracking-tight normal-case text-[#e8702a]">by-product</span> <br/>
-                deserves another purpose.
-              </h1>
-              <p className="text-white/60 font-light text-sm sm:text-base md:text-lg max-w-xl mt-6 leading-relaxed normal-case">
-                We map secondary material chemistry to regional industrial sinks—powering a search engine for the circular economy.
-              </p>
-            </div>
-
-            {/* Bottom row containing detailed descriptions and call-to-actions */}
-            <div className="relative z-50 flex flex-col md:flex-row md:items-end justify-between gap-8 w-full mt-auto">
-              
-              {/* Bottom-Left Detail */}
-              <div className="hidden md:block max-w-[320px] text-left font-sans pointer-events-none">
-                <p className="text-[11px] uppercase tracking-wider text-[#e8702a] font-semibold mb-2">Branching Material Landscape</p>
-                <p className="text-xs text-white/50 leading-relaxed font-light normal-case">
-                  Hover to trace how coffee grounds, polymer flakes, textile scraps, and wood shavings transition into structural steel, compost, and bio-feedstock.
+            {/* Split Content Grid */}
+            <div className="relative z-20 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center w-full max-w-7xl mx-auto my-auto">
+              {/* Left Column: Typography & CTAs */}
+              <div className="lg:col-span-7 flex flex-col items-start text-left pointer-events-auto select-none">
+                <span className="inline-block text-xs font-semibold tracking-widest text-[#22c55e] uppercase bg-[#22c55e]/10 px-3.5 py-1.5 rounded-full mb-6">
+                  ReSource AI // Material Intelligence
+                </span>
+                <h1 className="text-white font-extrabold text-4xl sm:text-6xl md:text-7xl leading-[0.95] tracking-[-0.04em] uppercase mb-6 font-sans">
+                  Every <span className="font-playfair italic font-light lowercase tracking-tight normal-case text-[#22c55e]">by-product</span> <br/>
+                  deserves another purpose.
+                </h1>
+                <p className="text-white/60 font-light text-sm sm:text-base md:text-lg max-w-xl leading-relaxed normal-case mb-8">
+                  We map secondary material chemistry to regional industrial sinks—powering a search engine for the circular economy.
                 </p>
+
+                <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center w-full">
+                  <button
+                    onClick={() => {
+                      setActiveTab('Analyze');
+                      triggerToast("Opening Ingestion Form...");
+                    }}
+                    className="bg-[#22c55e] hover:bg-[#16a34a] text-white text-sm font-semibold px-8 py-3.5 rounded-full transition-all hover:scale-[1.03] active:scale-95 hover:shadow-lg hover:shadow-[#22c55e]/30 pointer-events-auto cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span>Log Material Stream</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <div className="hidden sm:block text-left border-l border-[#22c55e]/35 pl-4 max-w-[240px]">
+                    <p className="text-xs text-white/50 leading-normal">
+                      Match your stream to nearby buyers and estimate carbon savings.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-12 border-l border-[#22c55e]/35 pl-5 max-w-md hidden lg:block">
+                  <p className="text-sm font-medium text-white/85 mb-1.5 tracking-tight">
+                    Hover card to reveal circular flow
+                  </p>
+                  <p className="text-xs text-white/45 leading-[1.65]">
+                    Watch raw by-products transform into secondary resources. Sweeping your cursor across the display reveals the mapped future of secondary chemistry.
+                  </p>
+                </div>
               </div>
 
-              {/* Bottom-Right CTA and Description */}
-              <div className="max-w-full sm:max-w-[340px] flex flex-col items-start gap-4 font-sans text-left">
-                <p className="text-xs sm:text-sm text-white/70 leading-relaxed font-light normal-case">
-                  Our decision engine geolocates regional buyers to calculate Scope 3 logistics routing and carbon offsets.
-                </p>
-                <button
-                  onClick={() => {
-                    setActiveTab('Analyze');
-                    triggerToast("Opening Ingestion Form...");
-                  }}
-                  className="bg-[#e8702a] hover:bg-[#d2611f] text-white text-sm font-semibold px-8 py-3.5 rounded-full transition-all hover:scale-[1.03] active:scale-95 hover:shadow-lg hover:shadow-[#e8702a]/30 pointer-events-auto cursor-pointer flex items-center gap-2"
+              {/* Right Column: Visual before/after container */}
+              <div className="lg:col-span-5 flex flex-col justify-center items-center w-full pointer-events-auto">
+                <div 
+                  ref={heroImageContainerRef}
+                  className="relative w-full max-w-[420px] aspect-[4/5] rounded-[2.5rem] overflow-hidden border border-white/10 shadow-2xl group cursor-crosshair bg-neutral-900"
                 >
-                  <span>Log Material Stream</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
+                  {/* Layer 1 & 2: Before/after images synced inside the container */}
+                  <div className="absolute inset-0 z-10 animate-slow-float overflow-hidden">
+                    <div
+                      className="absolute inset-0 bg-center bg-cover bg-no-repeat"
+                      style={{ backgroundImage: `url(${BG_IMAGE_1})` }}
+                    />
+                    <RevealLayer ref={revealLayerRef} image={BG_IMAGE_2} />
+                  </div>
 
+                  {/* Glassy Overlay Card borders & vignette */}
+                  <div className="absolute inset-0 border border-white/15 rounded-[2.5rem] pointer-events-none z-40 transition-colors duration-300 group-hover:border-[#22c55e]/30" />
+                  
+                  {/* Overlay Labels */}
+                  <div className="absolute top-5 left-5 z-40 bg-black/70 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 text-[10px] font-semibold tracking-wider uppercase text-white/80 select-none">
+                    Before: By-product
+                  </div>
+                  <div className="absolute bottom-5 right-5 z-40 bg-[#22c55e]/80 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 text-[10px] font-semibold tracking-wider uppercase text-white select-none">
+                    After: Resource
+                  </div>
+                </div>
+
+                {/* Mobile-only Hint */}
+                <div className="mt-4 text-center w-full block lg:hidden">
+                  <p className="text-xs text-white/40">
+                    Touch and drag the card to reveal the circular transition.
+                  </p>
+                </div>
+              </div>
             </div>
           </section>
 
           {/* Scrollable Content Section below the fold */}
-          <section className="bg-neutral-950 border-t border-white/10 py-24 px-6 relative z-50">
+          <section className="bg-neutral-950/60 backdrop-blur-md border-t border-white/10 py-24 px-6 relative z-50">
             <div className="max-w-7xl mx-auto">
               
               {/* Material Flow Pipelines */}
               <div className="mb-28 text-left font-sans">
-                <span className="text-xs font-semibold tracking-widest text-[#e8702a] uppercase bg-[#e8702a]/10 px-3.5 py-1.5 rounded-full">
+                <span className="text-xs font-semibold tracking-widest text-[#22c55e] uppercase bg-[#22c55e]/10 px-3.5 py-1.5 rounded-full">
                   Material Flow Pipelines
                 </span>
                 <h2 className="text-3xl sm:text-5xl font-extrabold text-white mt-6 mb-4 tracking-tight uppercase">
@@ -820,11 +956,11 @@ export default function App() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-16">
                   
                   {/* Micro-story 1 */}
-                  <div className="bg-neutral-900/60 border border-white/10 rounded-3xl p-8 relative overflow-hidden flex flex-col justify-between hover:border-[#e8702a]/30 transition-all duration-500 group">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-[#e8702a]/5 to-transparent rounded-bl-full pointer-events-none" />
+                  <div className="bg-neutral-900/60 border border-white/10 rounded-3xl p-8 relative overflow-hidden flex flex-col justify-between hover:border-[#22c55e]/30 transition-all duration-500 group">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-[#22c55e]/5 to-transparent rounded-bl-full pointer-events-none" />
                     <div>
                       <div className="flex items-center justify-between mb-6">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-[#e8702a] bg-[#e8702a]/10 px-3 py-1 rounded-full">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-[#22c55e] bg-[#22c55e]/10 px-3 py-1 rounded-full">
                           Organic Loop
                         </span>
                         <span className="text-[10px] text-white/40 font-mono">ID: ML-084</span>
@@ -833,13 +969,13 @@ export default function App() {
                       {/* Flow visual */}
                       <div className="space-y-4 my-6">
                         <div className="flex items-center gap-3">
-                          <div className="w-2.5 h-2.5 rounded-full bg-[#e8702a]" />
+                          <div className="w-2.5 h-2.5 rounded-full bg-[#22c55e]" />
                           <div>
                             <div className="text-[10px] text-white/40 uppercase font-semibold">Source Material</div>
                             <div className="text-sm font-bold text-white">Spent Coffee Grounds</div>
                           </div>
                         </div>
-                        <div className="h-6 w-0.5 bg-gradient-to-b from-[#e8702a] to-emerald-500 ml-1.25" />
+                        <div className="h-6 w-0.5 bg-gradient-to-b from-[#22c55e] to-emerald-500 ml-1.25" />
                         <div className="flex items-center gap-3">
                           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                           <div>
@@ -866,7 +1002,7 @@ export default function App() {
                   </div>
 
                   {/* Micro-story 2 */}
-                  <div className="bg-neutral-900/60 border border-white/10 rounded-3xl p-8 relative overflow-hidden flex flex-col justify-between hover:border-[#e8702a]/30 transition-all duration-500 group">
+                  <div className="bg-neutral-900/60 border border-white/10 rounded-3xl p-8 relative overflow-hidden flex flex-col justify-between hover:border-[#22c55e]/30 transition-all duration-500 group">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-sky-400/5 to-transparent rounded-bl-full pointer-events-none" />
                     <div>
                       <div className="flex items-center justify-between mb-6">
@@ -912,7 +1048,7 @@ export default function App() {
                   </div>
 
                   {/* Micro-story 3 */}
-                  <div className="bg-neutral-900/60 border border-white/10 rounded-3xl p-8 relative overflow-hidden flex flex-col justify-between hover:border-[#e8702a]/30 transition-all duration-500 group">
+                  <div className="bg-neutral-900/60 border border-white/10 rounded-3xl p-8 relative overflow-hidden flex flex-col justify-between hover:border-[#22c55e]/30 transition-all duration-500 group">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-amber-500/5 to-transparent rounded-bl-full pointer-events-none" />
                     <div>
                       <div className="flex items-center justify-between mb-6">
@@ -963,7 +1099,7 @@ export default function App() {
               {/* How It Works */}
               <div className="border-t border-white/5 pt-24 mb-28">
                 <div className="text-center mb-16 font-sans">
-                  <span className="text-xs font-semibold tracking-widest text-[#e8702a] uppercase bg-[#e8702a]/10 px-3.5 py-1.5 rounded-full">
+                  <span className="text-xs font-semibold tracking-widest text-[#22c55e] uppercase bg-[#22c55e]/10 px-3.5 py-1.5 rounded-full">
                     Operational Protocol
                   </span>
                   <h3 className="text-3xl sm:text-5xl font-extrabold text-white mt-6 mb-4 tracking-tight uppercase">
@@ -984,7 +1120,7 @@ export default function App() {
                         y1="2"
                         x2="100%"
                         y2="2"
-                        stroke="rgba(232, 112, 42, 0.15)"
+                        stroke="rgba(34, 197, 94, 0.15)"
                         strokeWidth="2"
                       />
                       <line
@@ -992,7 +1128,7 @@ export default function App() {
                         y1="2"
                         x2="100%"
                         y2="2"
-                        stroke="#e8702a"
+                        stroke="#22c55e"
                         strokeWidth="2"
                         className="animate-dash"
                       />
@@ -1007,7 +1143,7 @@ export default function App() {
                         y1="0"
                         x2="2"
                         y2="100%"
-                        stroke="rgba(232, 112, 42, 0.15)"
+                        stroke="rgba(34, 197, 94, 0.15)"
                         strokeWidth="2"
                       />
                       <line
@@ -1015,7 +1151,7 @@ export default function App() {
                         y1="0"
                         x2="2"
                         y2="100%"
-                        stroke="#e8702a"
+                        stroke="#22c55e"
                         strokeWidth="2"
                         className="animate-dash"
                       />
@@ -1025,11 +1161,11 @@ export default function App() {
                   <div className="grid grid-cols-1 lg:grid-cols-7 gap-8 lg:gap-4 relative z-10">
                     {/* Step 1 */}
                     <div className="flex lg:flex-col items-start gap-4 lg:gap-0 lg:text-center group">
-                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#e8702a] flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:bg-[#e8702a] group-hover:text-black transition-colors duration-300">
+                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#22c55e] flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:bg-[#22c55e] group-hover:text-black transition-colors duration-300">
                         <span className="text-xs font-bold font-mono text-white group-hover:text-black">01</span>
                       </div>
                       <div>
-                        <span className="text-[9px] font-bold text-[#e8702a] tracking-wider uppercase block mb-1">Waste</span>
+                        <span className="text-[9px] font-bold text-[#22c55e] tracking-wider uppercase block mb-1">Waste</span>
                         <h4 className="text-xs font-bold text-white mb-1.5 uppercase">Ingestion</h4>
                         <p className="text-[10px] text-white/50 leading-relaxed max-w-[150px] lg:mx-auto font-light normal-case">
                           Identify raw by-product stream volumes.
@@ -1039,11 +1175,11 @@ export default function App() {
 
                     {/* Step 2 */}
                     <div className="flex lg:flex-col items-start gap-4 lg:gap-0 lg:text-center group">
-                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#e8702a]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#e8702a] group-hover:bg-[#e8702a] transition-all duration-300">
+                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#22c55e]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#22c55e] group-hover:bg-[#22c55e] transition-all duration-300">
                         <span className="text-xs font-bold font-mono text-white group-hover:text-black">02</span>
                       </div>
                       <div>
-                        <span className="text-[9px] font-bold text-[#e8702a] tracking-wider uppercase block mb-1">Understanding</span>
+                        <span className="text-[9px] font-bold text-[#22c55e] tracking-wider uppercase block mb-1">Understanding</span>
                         <h4 className="text-xs font-bold text-white mb-1.5 uppercase">Material Science</h4>
                         <p className="text-[10px] text-white/50 leading-relaxed max-w-[150px] lg:mx-auto font-light normal-case">
                           Analyze physical and chemical properties.
@@ -1053,11 +1189,11 @@ export default function App() {
 
                     {/* Step 3 */}
                     <div className="flex lg:flex-col items-start gap-4 lg:gap-0 lg:text-center group">
-                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#e8702a]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#e8702a] group-hover:bg-[#e8702a] transition-all duration-300">
+                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#22c55e]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#22c55e] group-hover:bg-[#22c55e] transition-all duration-300">
                         <span className="text-xs font-bold font-mono text-white group-hover:text-black">03</span>
                       </div>
                       <div>
-                        <span className="text-[9px] font-bold text-[#e8702a] tracking-wider uppercase block mb-1">Classification</span>
+                        <span className="text-[9px] font-bold text-[#22c55e] tracking-wider uppercase block mb-1">Classification</span>
                         <h4 className="text-xs font-bold text-white mb-1.5 uppercase">Semantic Match</h4>
                         <p className="text-[10px] text-white/50 leading-relaxed max-w-[150px] lg:mx-auto font-light normal-case">
                           Resolve synonyms and standardize taxonomies.
@@ -1067,11 +1203,11 @@ export default function App() {
 
                     {/* Step 4 */}
                     <div className="flex lg:flex-col items-start gap-4 lg:gap-0 lg:text-center group">
-                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#e8702a]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#e8702a] group-hover:bg-[#e8702a] transition-all duration-300">
+                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#22c55e]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#22c55e] group-hover:bg-[#22c55e] transition-all duration-300">
                         <span className="text-xs font-bold font-mono text-white group-hover:text-black">04</span>
                       </div>
                       <div>
-                        <span className="text-[9px] font-bold text-[#e8702a] tracking-wider uppercase block mb-1">Matching</span>
+                        <span className="text-[9px] font-bold text-[#22c55e] tracking-wider uppercase block mb-1">Matching</span>
                         <h4 className="text-xs font-bold text-white mb-1.5 uppercase">Business Routing</h4>
                         <p className="text-[10px] text-white/50 leading-relaxed max-w-[150px] lg:mx-auto font-light normal-case">
                           Geolocate nearest logistics-compatible receivers.
@@ -1081,11 +1217,11 @@ export default function App() {
 
                     {/* Step 5 */}
                     <div className="flex lg:flex-col items-start gap-4 lg:gap-0 lg:text-center group">
-                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#e8702a]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#e8702a] group-hover:bg-[#e8702a] transition-all duration-300">
+                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#22c55e]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#22c55e] group-hover:bg-[#22c55e] transition-all duration-300">
                         <span className="text-xs font-bold font-mono text-white group-hover:text-black">05</span>
                       </div>
                       <div>
-                        <span className="text-[9px] font-bold text-[#e8702a] tracking-wider uppercase block mb-1">Analysis</span>
+                        <span className="text-[9px] font-bold text-[#22c55e] tracking-wider uppercase block mb-1">Analysis</span>
                         <h4 className="text-xs font-bold text-white mb-1.5 uppercase">Impact Audit</h4>
                         <p className="text-[10px] text-white/50 leading-relaxed max-w-[150px] lg:mx-auto font-light normal-case">
                           Calculate carbon offset factor and diverted weight.
@@ -1095,11 +1231,11 @@ export default function App() {
 
                     {/* Step 6 */}
                     <div className="flex lg:flex-col items-start gap-4 lg:gap-0 lg:text-center group">
-                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#e8702a]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#e8702a] group-hover:bg-[#e8702a] transition-all duration-300">
+                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#22c55e]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#22c55e] group-hover:bg-[#22c55e] transition-all duration-300">
                         <span className="text-xs font-bold font-mono text-white group-hover:text-black">06</span>
                       </div>
                       <div>
-                        <span className="text-[9px] font-bold text-[#e8702a] tracking-wider uppercase block mb-1">Recommendations</span>
+                        <span className="text-[9px] font-bold text-[#22c55e] tracking-wider uppercase block mb-1">Recommendations</span>
                         <h4 className="text-xs font-bold text-white mb-1.5 uppercase">AI Modeling</h4>
                         <p className="text-[10px] text-white/50 leading-relaxed max-w-[150px] lg:mx-auto font-light normal-case">
                           Create outreach emails and logistic compliance.
@@ -1109,11 +1245,11 @@ export default function App() {
 
                     {/* Step 7 */}
                     <div className="flex lg:flex-col items-start gap-4 lg:gap-0 lg:text-center group">
-                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#e8702a]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#e8702a] group-hover:bg-[#e8702a] transition-all duration-300">
+                      <div className="w-11 h-11 rounded-full bg-[#1c1c1c] border-2 border-[#22c55e]/40 flex items-center justify-center shrink-0 lg:mx-auto mb-4 group-hover:border-[#22c55e] group-hover:bg-[#22c55e] transition-all duration-300">
                         <span className="text-xs font-bold font-mono text-white group-hover:text-black">07</span>
                       </div>
                       <div>
-                        <span className="text-[9px] font-bold text-[#e8702a] tracking-wider uppercase block mb-1">Circular Economy</span>
+                        <span className="text-[9px] font-bold text-[#22c55e] tracking-wider uppercase block mb-1">Circular Economy</span>
                         <h4 className="text-xs font-bold text-white mb-1.5 uppercase">Value Realization</h4>
                         <p className="text-[10px] text-white/50 leading-relaxed max-w-[150px] lg:mx-auto font-light normal-case">
                           Close the loop and capture realized economic gains.
@@ -1130,11 +1266,11 @@ export default function App() {
                   
                   {/* Left Column: Context & Presets */}
                   <div className="lg:col-span-5 space-y-6 text-left">
-                    <span className="text-xs font-semibold tracking-widest text-[#e8702a] uppercase bg-[#e8702a]/10 px-3.5 py-1.5 rounded-full font-mono animate-pulse">
+                    <span className="text-xs font-semibold tracking-widest text-[#22c55e] uppercase bg-[#22c55e]/10 px-3.5 py-1.5 rounded-full font-mono animate-pulse">
                       AI Ingestion Simulator
                     </span>
                     <h3 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight uppercase font-sans">
-                      Watch the <span className="font-playfair italic font-light lowercase text-[#e8702a] tracking-tight normal-case">AI</span> think.
+                      Watch the <span className="font-playfair italic font-light lowercase text-[#22c55e] tracking-tight normal-case">AI</span> think.
                     </h3>
                     <p className="text-white/60 text-sm font-light leading-relaxed normal-case">
                       Select a raw waste stream query preset below to watch ReSource AI resolve raw synonym text into standardized chemistry, logistics matching, and impact math.
@@ -1148,16 +1284,16 @@ export default function App() {
                           onClick={() => runDemoPipeline(idx)}
                           className={`w-full text-left px-5 py-4 rounded-2xl border transition-all duration-300 flex items-center justify-between group cursor-pointer ${
                             demoActiveIndex === idx
-                              ? 'bg-neutral-900 border-[#e8702a] shadow-lg shadow-[#e8702a]/5'
+                              ? 'bg-neutral-900 border-[#22c55e] shadow-lg shadow-[#22c55e]/5'
                               : 'bg-black/40 border-white/5 hover:border-white/20 hover:bg-neutral-900/30'
                           }`}
                         >
                           <div className="max-w-[85%] font-sans normal-case">
-                            <div className="text-[10px] uppercase font-bold text-[#e8702a] mb-1">{preset.category}</div>
+                            <div className="text-[10px] uppercase font-bold text-[#22c55e] mb-1">{preset.category}</div>
                             <div className="text-xs text-white/80 font-medium truncate">{preset.input}</div>
                           </div>
-                          <div className="w-8 h-8 rounded-full bg-[#1c1c1c] border border-white/10 flex items-center justify-center shrink-0 group-hover:border-[#e8702a] group-hover:bg-[#e8702a]/10 transition-colors">
-                            <ArrowRight className="w-3.5 h-3.5 text-white/60 group-hover:text-[#e8702a]" />
+                          <div className="w-8 h-8 rounded-full bg-[#1c1c1c] border border-white/10 flex items-center justify-center shrink-0 group-hover:border-[#22c55e] group-hover:bg-[#22c55e]/10 transition-colors">
+                            <ArrowRight className="w-3.5 h-3.5 text-white/60 group-hover:text-[#22c55e]" />
                           </div>
                         </button>
                       ))}
@@ -1167,7 +1303,7 @@ export default function App() {
                   {/* Right Column: Animated Terminal Mockup */}
                   <div className="lg:col-span-7 bg-[#0c0c0c] border border-white/10 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-2xl relative min-h-[460px] flex flex-col justify-between overflow-hidden">
                     {/* Glowing status bar */}
-                    <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-transparent via-[#e8702a] to-transparent opacity-45" />
+                    <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-transparent via-[#22c55e] to-transparent opacity-45" />
 
                     {/* Terminal Header */}
                     <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-6 font-sans">
@@ -1178,7 +1314,7 @@ export default function App() {
                         <span className="text-[10px] text-white/30 font-mono ml-2 uppercase tracking-widest">material_auditor_v1.0</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${demoRunning ? 'bg-[#e8702a] animate-ping' : 'bg-emerald-500'}`} />
+                        <span className={`w-2 h-2 rounded-full ${demoRunning ? 'bg-[#22c55e] animate-ping' : 'bg-emerald-500'}`} />
                         <span className="text-[9px] font-mono uppercase text-white/40 font-bold">
                           {demoRunning ? "auditing..." : "standby"}
                         </span>
@@ -1189,31 +1325,31 @@ export default function App() {
                     <div className="space-y-3.5 flex-grow font-mono text-xs text-left">
                       {/* Query prompt */}
                       <div className="bg-[#141414] border border-white/5 rounded-xl p-4 mb-6">
-                        <span className="text-[#e8702a] font-bold">&gt; Ingest Query: </span>
+                        <span className="text-[#22c55e] font-bold">&gt; Ingest Query: </span>
                         <span className="text-white/80">"{DEMO_PRESETS[demoActiveIndex].input}"</span>
                       </div>
 
                       {/* Step 1: Standardization */}
                       {demoStep >= 1 ? (
-                        <div className="border border-[#e8702a]/10 bg-neutral-900/30 rounded-xl p-3.5 flex items-center justify-between animate-fade-in border-l-2 border-l-[#e8702a]">
+                        <div className="border border-[#22c55e]/10 bg-neutral-900/30 rounded-xl p-3.5 flex items-center justify-between animate-fade-in border-l-2 border-l-[#22c55e]">
                           <div className="space-y-1">
-                            <span className="text-[9px] text-[#e8702a] font-bold uppercase tracking-wider">01 // Semantic Taxonomy Classification</span>
+                            <span className="text-[9px] text-[#22c55e] font-bold uppercase tracking-wider">01 // Semantic Taxonomy Classification</span>
                             <div className="text-white text-xs font-semibold">
-                              Detected: <span className="text-[#e8702a]">{DEMO_PRESETS[demoActiveIndex].detected}</span>
+                              Detected: <span className="text-[#22c55e]">{DEMO_PRESETS[demoActiveIndex].detected}</span>
                             </div>
                           </div>
                           <CheckCircle className="w-4.5 h-4.5 text-emerald-400 shrink-0 ml-4" />
                         </div>
                       ) : demoRunning && demoStep === 0 ? (
                         <div className="h-10 flex items-center gap-2 text-white/30 italic pl-4 animate-pulse">
-                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-[#e8702a] rounded-full animate-spin" />
+                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-[#22c55e] rounded-full animate-spin" />
                           <span>Standardizing chemical composition...</span>
                         </div>
                       ) : null}
 
                       {/* Step 2: Uses */}
                       {demoStep >= 2 ? (
-                        <div className="border border-[#e8702a]/10 bg-neutral-900/30 rounded-xl p-3.5 flex items-center justify-between animate-fade-in border-l-2 border-l-emerald-500">
+                        <div className="border border-[#22c55e]/10 bg-neutral-900/30 rounded-xl p-3.5 flex items-center justify-between animate-fade-in border-l-2 border-l-emerald-500">
                           <div className="space-y-1">
                             <span className="text-[9px] text-emerald-500 font-bold uppercase tracking-wider">02 // Physical Trait Compatibility</span>
                             <div className="text-white text-xs font-semibold flex flex-wrap gap-1.5 mt-1">
@@ -1228,16 +1364,16 @@ export default function App() {
                         </div>
                       ) : demoRunning && demoStep === 1 ? (
                         <div className="h-10 flex items-center gap-2 text-white/30 italic pl-4 animate-pulse">
-                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-[#e8702a] rounded-full animate-spin" />
+                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-[#22c55e] rounded-full animate-spin" />
                           <span>Scanning physical compatibilities...</span>
                         </div>
                       ) : null}
 
                       {/* Step 3: Match */}
                       {demoStep >= 3 ? (
-                        <div className="border border-[#e8702a]/10 bg-neutral-900/30 rounded-xl p-3.5 flex items-center justify-between animate-fade-in border-l-2 border-l-[#e8702a]">
+                        <div className="border border-[#22c55e]/10 bg-neutral-900/30 rounded-xl p-3.5 flex items-center justify-between animate-fade-in border-l-2 border-l-[#22c55e]">
                           <div className="space-y-1">
-                            <span className="text-[9px] text-[#e8702a] font-bold uppercase tracking-wider">03 // Geodetic Logistics Routing</span>
+                            <span className="text-[9px] text-[#22c55e] font-bold uppercase tracking-wider">03 // Geodetic Logistics Routing</span>
                             <div className="text-white text-xs font-semibold">
                               Nearest Sink: <span className="text-white font-bold">{DEMO_PRESETS[demoActiveIndex].match}</span>
                               <span className="text-white/40 text-[10px] font-normal ml-2">({DEMO_PRESETS[demoActiveIndex].distance})</span>
@@ -1247,14 +1383,14 @@ export default function App() {
                         </div>
                       ) : demoRunning && demoStep === 2 ? (
                         <div className="h-10 flex items-center gap-2 text-white/30 italic pl-4 animate-pulse">
-                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-[#e8702a] rounded-full animate-spin" />
+                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-[#22c55e] rounded-full animate-spin" />
                           <span>Calculating geodetic distance matrices...</span>
                         </div>
                       ) : null}
 
                       {/* Step 4: Carbon */}
                       {demoStep >= 4 ? (
-                        <div className="border border-[#e8702a]/10 bg-neutral-900/30 rounded-xl p-3.5 flex items-center justify-between animate-fade-in border-l-2 border-l-emerald-500">
+                        <div className="border border-[#22c55e]/10 bg-neutral-900/30 rounded-xl p-3.5 flex items-center justify-between animate-fade-in border-l-2 border-l-emerald-500">
                           <div className="space-y-1">
                             <span className="text-[9px] text-emerald-500 font-bold uppercase tracking-wider">04 // Carbon Offset Math</span>
                             <div className="text-emerald-400 text-xs font-bold font-mono">
@@ -1265,25 +1401,25 @@ export default function App() {
                         </div>
                       ) : demoRunning && demoStep === 3 ? (
                         <div className="h-10 flex items-center gap-2 text-white/30 italic pl-4 animate-pulse">
-                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-[#e8702a] rounded-full animate-spin" />
+                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-[#22c55e] rounded-full animate-spin" />
                           <span>Evaluating transportation offset multipliers...</span>
                         </div>
                       ) : null}
 
                       {/* Step 5: Revenue */}
                       {demoStep >= 5 ? (
-                        <div className="border border-[#e8702a]/25 bg-[#e8702a]/5 rounded-xl p-3.5 flex items-center justify-between animate-fade-in border-l-4 border-l-[#e8702a]">
+                        <div className="border border-[#22c55e]/25 bg-[#22c55e]/5 rounded-xl p-3.5 flex items-center justify-between animate-fade-in border-l-4 border-l-[#22c55e]">
                           <div className="space-y-1">
-                            <span className="text-[9px] text-[#e8702a] font-bold uppercase tracking-wider">05 // Financial Yield Estimate</span>
+                            <span className="text-[9px] text-[#22c55e] font-bold uppercase tracking-wider">05 // Financial Yield Estimate</span>
                             <div className="text-white text-xs font-bold font-mono">
                               Projected B2B Value: <span className="text-amber-400">{DEMO_PRESETS[demoActiveIndex].revenue}</span>
                             </div>
                           </div>
-                          <CheckCircle className="w-4.5 h-4.5 text-[#e8702a] shrink-0 ml-4" />
+                          <CheckCircle className="w-4.5 h-4.5 text-[#22c55e] shrink-0 ml-4" />
                         </div>
                       ) : demoRunning && demoStep === 4 ? (
                         <div className="h-10 flex items-center gap-2 text-white/30 italic pl-4 animate-pulse">
-                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-[#e8702a] rounded-full animate-spin" />
+                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-[#22c55e] rounded-full animate-spin" />
                           <span>Assessing market rate index matrix...</span>
                         </div>
                       ) : null}
@@ -1300,7 +1436,7 @@ export default function App() {
                         className="bg-white text-black text-xs font-bold px-6 py-2.5 rounded-full shadow-lg active:scale-95 transition-all hover:bg-neutral-100 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
                       >
                         <span>Analyze Stream</span>
-                        <Sparkles className="w-3.5 h-3.5 text-[#e8702a]" />
+                        <Sparkles className="w-3.5 h-3.5 text-[#22c55e]" />
                       </button>
                     </div>
                   </div>
@@ -1309,7 +1445,7 @@ export default function App() {
               </div>
 
               {/* Bottom CTA Panel */}
-              <div className="bg-gradient-to-r from-[#e8702a]/10 via-[#e8702a]/5 to-transparent border border-white/10 rounded-3xl p-8 sm:p-12 flex flex-col md:flex-row items-center justify-between gap-8 mt-16 text-left font-sans">
+              <div className="bg-gradient-to-r from-[#22c55e]/10 via-[#22c55e]/5 to-transparent border border-white/10 rounded-3xl p-8 sm:p-12 flex flex-col md:flex-row items-center justify-between gap-8 mt-16 text-left font-sans">
                 <div>
                   <h3 className="text-2xl sm:text-4xl font-extrabold text-white">
                     Ready to map circular value?
@@ -1345,11 +1481,11 @@ export default function App() {
             <div className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6">
               <div className="bg-neutral-900 border border-white/10 rounded-3xl p-8 max-w-md w-full text-center shadow-2xl relative overflow-hidden">
                 {/* Glowing status line */}
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#e8702a] to-transparent animate-pulse" />
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#22c55e] to-transparent animate-pulse" />
                 
                 <div className="relative mb-6">
-                  <div className="w-16 h-16 border-4 border-[#e8702a]/20 border-t-[#e8702a] rounded-full animate-spin mx-auto" />
-                  <Sparkles className="w-6 h-6 text-[#e8702a] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+                  <div className="w-16 h-16 border-4 border-[#22c55e]/20 border-t-[#22c55e] rounded-full animate-spin mx-auto" />
+                  <Sparkles className="w-6 h-6 text-[#22c55e] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
                 </div>
 
                 <h3 className="text-xl font-bold text-white mb-2">Analyzing Circular Yields</h3>
@@ -1400,7 +1536,7 @@ export default function App() {
               
               {/* Explanatory Panel Left */}
               <div className="lg:col-span-5 space-y-6">
-                <span className="text-xs font-semibold tracking-widest text-[#e8702a] uppercase bg-[#e8702a]/10 px-3.5 py-1.5 rounded-full">
+                <span className="text-xs font-semibold tracking-widest text-[#22c55e] uppercase bg-[#22c55e]/10 px-3.5 py-1.5 rounded-full">
                   Ingestion Engine
                 </span>
                 <h2 className="text-3xl sm:text-5xl font-playfair font-normal italic text-white tracking-tight text-white mt-4">
@@ -1412,7 +1548,7 @@ export default function App() {
 
                 <div className="space-y-4 pt-6 border-t border-white/5">
                   <div className="flex items-start gap-4">
-                    <div className="p-2 rounded-xl bg-neutral-900 border border-white/5 shrink-0 text-[#e8702a]">
+                    <div className="p-2 rounded-xl bg-neutral-900 border border-white/5 shrink-0 text-[#22c55e]">
                       <Compass className="w-5 h-5" />
                     </div>
                     <div>
@@ -1445,7 +1581,7 @@ export default function App() {
                         value={formState.business_name}
                         onChange={handleInputChange}
                         placeholder="e.g., Pune Bakery Co."
-                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:border-[#e8702a] focus:outline-none transition-colors"
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:border-[#22c55e] focus:outline-none transition-colors"
                       />
                     </div>
                     <div>
@@ -1454,7 +1590,7 @@ export default function App() {
                         name="industry"
                         value={formState.industry}
                         onChange={handleInputChange}
-                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-[#e8702a] focus:outline-none transition-colors"
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-[#22c55e] focus:outline-none transition-colors"
                       >
                         <option>Food & Beverage</option>
                         <option>Woodworking & Carpentry</option>
@@ -1477,7 +1613,7 @@ export default function App() {
                       value={formState.waste_type}
                       onChange={handleInputChange}
                       placeholder="e.g., spent coffee grounds, wood dust, scrap plastic clippings"
-                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:border-[#e8702a] focus:outline-none transition-colors"
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:border-[#22c55e] focus:outline-none transition-colors"
                     />
                   </div>
 
@@ -1489,7 +1625,7 @@ export default function App() {
                       onChange={handleInputChange}
                       placeholder="Specify moisture contents, plastic grade, packing type or delivery limits..."
                       rows={3}
-                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:border-[#e8702a] focus:outline-none transition-colors resize-none"
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:border-[#22c55e] focus:outline-none transition-colors resize-none"
                     />
                   </div>
 
@@ -1503,7 +1639,7 @@ export default function App() {
                         value={formState.quantity}
                         onChange={handleInputChange}
                         placeholder="e.g., 500"
-                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:border-[#e8702a] focus:outline-none transition-colors"
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:border-[#22c55e] focus:outline-none transition-colors"
                       />
                     </div>
                     <div>
@@ -1512,7 +1648,7 @@ export default function App() {
                         name="frequency"
                         value={formState.frequency}
                         onChange={handleInputChange}
-                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-[#e8702a] focus:outline-none transition-colors"
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-[#22c55e] focus:outline-none transition-colors"
                       >
                         <option value="weekly">Weekly</option>
                         <option value="monthly">Monthly</option>
@@ -1529,7 +1665,7 @@ export default function App() {
                         name="location"
                         value={formState.location}
                         onChange={handleInputChange}
-                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-[#e8702a] focus:outline-none transition-colors"
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-[#22c55e] focus:outline-none transition-colors"
                       >
                         <option value="Hadapsar">Hadapsar</option>
                         <option value="Chakan">Chakan</option>
@@ -1545,7 +1681,7 @@ export default function App() {
                         name="current_disposal_method"
                         value={formState.current_disposal_method}
                         onChange={handleInputChange}
-                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-[#e8702a] focus:outline-none transition-colors"
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-[#22c55e] focus:outline-none transition-colors"
                       >
                         <option value="landfill">Landfill Dump</option>
                         <option value="incineration">Incineration (burning)</option>
@@ -1557,7 +1693,7 @@ export default function App() {
 
                   <button
                     type="submit"
-                    className="w-full bg-[#e8702a] hover:bg-[#d2611f] text-white text-sm font-semibold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
+                    className="w-full bg-[#22c55e] hover:bg-[#16a34a] text-white text-sm font-semibold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
                   >
                     <span>Initiate Analytical Audit</span>
                     <Sparkles className="w-4 h-4" />
@@ -1574,7 +1710,7 @@ export default function App() {
                 <div>
                   <button
                     onClick={() => { setAnalysisResult(null); setIsAnalyzing(false); }}
-                    className="text-xs text-[#e8702a] font-semibold flex items-center gap-1 hover:underline cursor-pointer mb-2"
+                    className="text-xs text-[#22c55e] font-semibold flex items-center gap-1 hover:underline cursor-pointer mb-2"
                   >
                     &larr; Back to Intake Form
                   </button>
@@ -1607,7 +1743,7 @@ export default function App() {
                 </div>
 
                 <div className="bg-neutral-900 border border-white/10 rounded-2xl p-5 flex flex-col justify-between">
-                  <Activity className="w-6 h-6 text-[#e8702a] mb-4" />
+                  <Activity className="w-6 h-6 text-[#22c55e] mb-4" />
                   <div>
                     <div className="text-2xl font-bold font-mono text-white">
                       {analysisResult.nearby_businesses[0]?.landfill_diverted_kg_monthly.toLocaleString() || 'N/A'} kg
@@ -1645,7 +1781,7 @@ export default function App() {
                   {/* Primary Partner Match Card */}
                   {analysisResult.nearby_businesses.length > 0 && (
                     <div className="bg-neutral-900 border border-white/10 rounded-3xl p-6 relative overflow-hidden">
-                      <div className="absolute top-0 right-0 bg-[#e8702a]/10 border-l border-b border-[#e8702a]/20 text-[#e8702a] text-[10px] font-semibold tracking-wider uppercase px-4 py-1.5 rounded-bl-xl">
+                      <div className="absolute top-0 right-0 bg-[#22c55e]/10 border-l border-b border-[#22c55e]/20 text-[#22c55e] text-[10px] font-semibold tracking-wider uppercase px-4 py-1.5 rounded-bl-xl">
                         Primary Partner Match
                       </div>
 
@@ -1699,7 +1835,7 @@ export default function App() {
                             <Compass className="w-4 h-4 text-white/40 shrink-0" />
                             <div>
                               <div className="text-[10px] text-white/40 uppercase">Circular Pipeline Target</div>
-                              <div className="text-sm font-semibold text-[#e8702a]">{analysisResult.top_opportunity.opportunity_name}</div>
+                              <div className="text-sm font-semibold text-[#22c55e]">{analysisResult.top_opportunity.opportunity_name}</div>
                             </div>
                           </div>
                         </div>
@@ -1710,7 +1846,7 @@ export default function App() {
                   {/* Gemini Recommendations Sheets */}
                   <div className="bg-neutral-900 border border-white/10 rounded-3xl p-6 sm:p-8 space-y-6">
                     <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                      <Sparkles className="w-5 h-5 text-[#e8702a]" />
+                      <Sparkles className="w-5 h-5 text-[#22c55e]" />
                       <span>Gemini AI Circular Audit</span>
                     </h3>
 
@@ -1741,7 +1877,7 @@ export default function App() {
                             <li key={idx} className="flex items-start gap-3">
                               <input
                                 type="checkbox"
-                                className="mt-1 accent-[#e8702a] w-4 h-4 rounded border-white/10 bg-black"
+                                className="mt-1 accent-[#22c55e] w-4 h-4 rounded border-white/10 bg-black"
                               />
                               <span className="text-white/85 text-xs sm:text-sm font-light">{step}</span>
                             </li>
@@ -1757,7 +1893,7 @@ export default function App() {
                   {/* Outreach template envelope */}
                   <div className="bg-neutral-900 border border-white/10 rounded-3xl p-6 relative flex flex-col h-full">
                     <div className="flex justify-between items-center mb-4">
-                      <span className="text-xs font-semibold text-[#e8702a] uppercase tracking-wider">
+                      <span className="text-xs font-semibold text-[#22c55e] uppercase tracking-wider">
                         B2B Outreach Envelope
                       </span>
                       <button
@@ -1812,7 +1948,7 @@ export default function App() {
           
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-6">
             <div>
-              <span className="text-xs font-semibold tracking-widest text-[#e8702a] uppercase bg-[#e8702a]/10 px-3.5 py-1.5 rounded-full">
+              <span className="text-xs font-semibold tracking-widest text-[#22c55e] uppercase bg-[#22c55e]/10 px-3.5 py-1.5 rounded-full">
                 Operations Board
               </span>
               <h2 className="text-3xl sm:text-5xl font-playfair font-normal italic text-white tracking-tight mt-4">
@@ -1831,7 +1967,7 @@ export default function App() {
 
           {dashboardLoading && !dashboardData ? (
             <div className="flex items-center justify-center py-24">
-              <div className="w-10 h-10 border-4 border-t-[#e8702a] border-[#e8702a]/20 rounded-full animate-spin" />
+              <div className="w-10 h-10 border-4 border-t-[#22c55e] border-[#22c55e]/20 rounded-full animate-spin" />
             </div>
           ) : dashboardData ? (
             <div className="space-y-8">
@@ -1849,7 +1985,7 @@ export default function App() {
                 </div>
 
                 <div className="bg-neutral-900 border border-white/10 rounded-2xl p-5 flex flex-col justify-between">
-                  <Activity className="w-6 h-6 text-[#e8702a] mb-4" />
+                  <Activity className="w-6 h-6 text-[#22c55e] mb-4" />
                   <div>
                     <div className="text-2xl sm:text-3xl font-bold font-mono text-white">
                       {dashboardData.total_landfill_diverted.toLocaleString()} kg
@@ -1906,8 +2042,8 @@ export default function App() {
                         <svg className="w-full h-full" viewBox="0 0 500 200" preserveAspectRatio="none">
                           <defs>
                             <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#e8702a" stopOpacity="0.4" />
-                              <stop offset="100%" stopColor="#e8702a" stopOpacity="0" />
+                              <stop offset="0%" stopColor="#22c55e" stopOpacity="0.4" />
+                              <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
                             </linearGradient>
                           </defs>
                           
@@ -1946,7 +2082,7 @@ export default function App() {
                                 {/* Fill area */}
                                 {points.length > 1 && <path d={areaD} fill="url(#chartGradient)" />}
                                 {/* Stroke Line */}
-                                <path d={pathD} fill="none" stroke="#e8702a" strokeWidth="2.5" />
+                                <path d={pathD} fill="none" stroke="#22c55e" strokeWidth="2.5" />
                                 
                                 {/* Point Indicators */}
                                 {points.map((p, idx) => (
@@ -1956,7 +2092,7 @@ export default function App() {
                                       cy={p.y}
                                       r="5"
                                       fill="black"
-                                      stroke="#e8702a"
+                                      stroke="#22c55e"
                                       strokeWidth="2"
                                       className="hover:r-7 transition-all duration-150"
                                     />
@@ -2010,7 +2146,7 @@ export default function App() {
                                 </div>
                                 <div className="w-full bg-black/50 h-1.5 rounded-full overflow-hidden">
                                   <div
-                                    className="bg-[#e8702a] h-full"
+                                    className="bg-[#22c55e] h-full"
                                     style={{ width: `${pct}%` }}
                                   />
                                 </div>
@@ -2062,7 +2198,7 @@ export default function App() {
                             </td>
                             <td className="py-3.5 pr-4 text-white/60">{log.location}</td>
                             <td className="py-3.5 pr-4 italic text-white/55">"{log.waste_type}"</td>
-                            <td className="py-3.5 pr-4 text-[#e8702a] font-medium">{log.waste_type_standard}</td>
+                            <td className="py-3.5 pr-4 text-[#22c55e] font-medium">{log.waste_type_standard}</td>
                             <td className="py-3.5 pr-4 text-right font-mono text-white/80">{Math.round(log.quantity).toLocaleString()}</td>
                             <td className="py-3.5 pr-4 text-right font-mono text-emerald-400 font-medium">-{Math.round(log.carbon_saved_monthly).toLocaleString()}</td>
                             <td className="py-3.5 pr-4 text-right font-mono text-amber-400 font-medium">₹{Math.round(log.monthly_revenue).toLocaleString()}</td>
@@ -2105,7 +2241,7 @@ export default function App() {
       {activeTab === 'Taxonomy' && (
         <section className="pt-28 pb-20 px-4 sm:px-6 max-w-7xl mx-auto space-y-8 animate-fade-in">
           <div>
-            <span className="text-xs font-semibold tracking-widest text-[#e8702a] uppercase bg-[#e8702a]/10 px-3.5 py-1.5 rounded-full">
+            <span className="text-xs font-semibold tracking-widest text-[#22c55e] uppercase bg-[#22c55e]/10 px-3.5 py-1.5 rounded-full">
               Standardized taxonomy
             </span>
             <h2 className="text-3xl sm:text-5xl font-playfair font-normal italic text-white mt-4">
@@ -2118,10 +2254,10 @@ export default function App() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4">
             {TAXONOMY_DATA.map((tax) => (
-              <div key={tax.id} className="bg-neutral-900 border border-white/10 rounded-2xl p-6 flex flex-col justify-between hover:border-[#e8702a]/30 transition-all duration-300 group">
+              <div key={tax.id} className="bg-neutral-900 border border-white/10 rounded-2xl p-6 flex flex-col justify-between hover:border-[#22c55e]/30 transition-all duration-300 group">
                 <div>
                   <div className="flex justify-between items-start mb-3">
-                    <span className="text-[10px] font-semibold text-[#e8702a] uppercase bg-[#e8702a]/15 px-2 py-0.5 rounded">
+                    <span className="text-[10px] font-semibold text-[#22c55e] uppercase bg-[#22c55e]/15 px-2 py-0.5 rounded">
                       {tax.category}
                     </span>
                     <span className="text-xs font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded-full">
@@ -2129,7 +2265,7 @@ export default function App() {
                     </span>
                   </div>
 
-                  <h3 className="text-lg font-bold text-white group-hover:text-[#e8702a] transition-colors">{tax.name}</h3>
+                  <h3 className="text-lg font-bold text-white group-hover:text-[#22c55e] transition-colors">{tax.name}</h3>
                   <p className="text-xs text-white/60 mt-3.5 leading-relaxed font-light">{tax.desc}</p>
                 </div>
 
@@ -2147,7 +2283,7 @@ export default function App() {
       {activeTab === 'Partners' && (
         <section className="pt-28 pb-20 px-4 sm:px-6 max-w-7xl mx-auto space-y-8 animate-fade-in">
           <div>
-            <span className="text-xs font-semibold tracking-widest text-[#e8702a] uppercase bg-[#e8702a]/10 px-3.5 py-1.5 rounded-full">
+            <span className="text-xs font-semibold tracking-widest text-[#22c55e] uppercase bg-[#22c55e]/10 px-3.5 py-1.5 rounded-full">
               Pune MIDC directory
             </span>
             <h2 className="text-3xl sm:text-5xl font-playfair font-normal italic text-white mt-4">
@@ -2192,7 +2328,7 @@ export default function App() {
                   </div>
                   <a
                     href={`tel:${buyer.phone}`}
-                    className="text-[#e8702a] hover:underline flex items-center gap-1 font-semibold"
+                    className="text-[#22c55e] hover:underline flex items-center gap-1 font-semibold"
                   >
                     <Phone className="w-3 h-3" />
                     <span>Call Partner</span>
@@ -2208,7 +2344,7 @@ export default function App() {
       {activeTab === 'Live Map' && (
         <section className="pt-28 pb-20 px-4 sm:px-6 max-w-7xl mx-auto space-y-8 animate-fade-in font-sans">
           <div>
-            <span className="text-xs font-semibold tracking-widest text-[#e8702a] uppercase bg-[#e8702a]/10 px-3.5 py-1.5 rounded-full">
+            <span className="text-xs font-semibold tracking-widest text-[#22c55e] uppercase bg-[#22c55e]/10 px-3.5 py-1.5 rounded-full">
               Live Logistics Visualizer
             </span>
             <h2 className="text-3xl sm:text-5xl font-extrabold text-white mt-4 tracking-tight uppercase">
@@ -2245,7 +2381,7 @@ export default function App() {
                           y1={conn.y1}
                           x2={conn.x2}
                           y2={conn.y2}
-                          stroke={isHovered ? "rgba(232, 112, 42, 0.4)" : "rgba(232, 112, 42, 0.15)"}
+                          stroke={isHovered ? "rgba(34, 197, 94, 0.4)" : "rgba(34, 197, 94, 0.15)"}
                           strokeWidth={isHovered ? "2.5" : "1.5"}
                           className="transition-all duration-300"
                         />
@@ -2255,7 +2391,7 @@ export default function App() {
                           y1={conn.y1}
                           x2={conn.x2}
                           y2={conn.y2}
-                          stroke={isHovered ? "#ffffff" : "#e8702a"}
+                          stroke={isHovered ? "#ffffff" : "#22c55e"}
                           strokeWidth="2"
                           strokeDasharray="5 5"
                           className="animate-dash"
@@ -2293,7 +2429,7 @@ export default function App() {
                         cy={node.cy}
                         r={isHovered ? 16 : 9}
                         fill="none"
-                        stroke={node.id === 'pune' ? '#ffffff' : '#e8702a'}
+                        stroke={node.id === 'pune' ? '#ffffff' : '#22c55e'}
                         strokeWidth="1"
                         className="animate-ping"
                         style={{ transformOrigin: `${node.cx}px ${node.cy}px` }}
@@ -2304,7 +2440,7 @@ export default function App() {
                         cx={node.cx}
                         cy={node.cy}
                         r={node.id === 'pune' ? 6 : 5}
-                        fill={node.id === 'pune' ? '#ffffff' : '#e8702a'}
+                        fill={node.id === 'pune' ? '#ffffff' : '#22c55e'}
                         className="transition-all duration-200 group-hover:scale-125"
                       />
 
@@ -2316,7 +2452,7 @@ export default function App() {
                         fill="rgba(255, 255, 255, 0.75)"
                         fontSize="9"
                         fontWeight="semibold"
-                        className="transition-colors group-hover:fill-[#e8702a] select-none"
+                        className="transition-colors group-hover:fill-[#22c55e] select-none"
                       >
                         {node.id === 'pune' ? "PUNE CENTER" : node.id.toUpperCase()}
                       </text>
@@ -2331,12 +2467,12 @@ export default function App() {
               <div className="bg-neutral-900 border border-white/10 rounded-3xl p-6 min-h-[380px] flex flex-col justify-between">
                 {hoveredConnection ? (
                   <div className="space-y-4 animate-fade-in text-left">
-                    <span className="text-[10px] font-semibold text-[#e8702a] uppercase bg-[#e8702a]/15 px-2.5 py-1 rounded">
+                    <span className="text-[10px] font-semibold text-[#22c55e] uppercase bg-[#22c55e]/15 px-2.5 py-1 rounded">
                       Active Route Specifications
                     </span>
                     
                     <h3 className="text-lg font-bold text-white mt-2">
-                      {hoveredConnection.fromName} <span className="text-[#e8702a] text-xs block sm:inline">→</span> {hoveredConnection.toName}
+                      {hoveredConnection.fromName} <span className="text-[#22c55e] text-xs block sm:inline">→</span> {hoveredConnection.toName}
                     </h3>
                     
                     <div className="border-t border-white/5 pt-4 space-y-3.5">
@@ -2382,7 +2518,7 @@ export default function App() {
                           </div>
                           <div className="flex justify-between text-xs">
                             <span className="text-white/40">Circular Buyers Active:</span>
-                            <span className="font-bold text-[#e8702a]">{node.partners}</span>
+                            <span className="font-bold text-[#22c55e]">{node.partners}</span>
                           </div>
                         </div>
                       </div>
